@@ -50,7 +50,7 @@ freightflow-ai/
 ├── package.json              # Root workspace scripts
 └── .env.example
 
-```bash
+
 backend/
 ├── src/
 │   ├── index.ts
