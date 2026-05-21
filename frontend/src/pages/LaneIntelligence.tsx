@@ -17,7 +17,7 @@ import {
   Bar,
   BarChart,
 } from 'recharts'
-import { fetchLanes, searchLanes } from '@/lib/api'
+import { fetchLanes, searchLanes } from '@/src//lib/api'
 import type { Lane } from '@/src/types/quote'
 import { cn } from '@/lib/utils'
 
