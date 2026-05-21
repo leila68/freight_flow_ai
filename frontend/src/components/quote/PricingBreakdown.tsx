@@ -9,84 +9,90 @@ interface PricingBreakdownProps {
   formData: QuoteFormData
 }
 
-// Simulated distance calculation
-function calculateDistance(origin: string, destination: string): number {
-  if (!origin || !destination) return 0
-  // Mock distance calculation based on common routes
-  const routes: Record<string, number> = {
-    'Los Angeles, CA-Phoenix, AZ': 373,
-    'Chicago, IL-Detroit, MI': 282,
-    'Dallas, TX-Houston, TX': 239,
-    'Seattle, WA-Portland, OR': 174,
-    'Atlanta, GA-Miami, FL': 662,
-  }
-  const key = `${origin}-${destination}`
-  const reverseKey = `${destination}-${origin}`
-  return routes[key] || routes[reverseKey] || Math.floor(200 + Math.random() * 500)
+// ─── Rate engine (mirrors backend logic exactly) ──────────────────────────────
+// Keeping this in sync with backend/src/services/quoteService.ts
+// so the live preview matches what the API will return.
+
+const EQUIPMENT_MULTIPLIERS: Record<string, number> = {
+  dry_van: 1.00,
+  reefer:  1.30,
+  flatbed: 1.15,
 }
 
-// Simulated rate calculation
-function calculateRate(distance: number, equipment: string, weight: number, accessorials: string[]): number {
-  const baseRatePerMile: Record<string, number> = {
-    dry_van: 2.85,
-    reefer: 3.45,
-    flatbed: 3.25,
-    step_deck: 3.75,
-    lowboy: 4.25,
+const WEIGHT_THRESHOLD = 10_000
+const WEIGHT_RATE      = 0.10 // per 100 lbs over threshold
+
+function calculateBreakdown(
+  baseRate:      number,
+  equipmentType: string,
+  weightLbs:     number,
+) {
+  const multiplier        = EQUIPMENT_MULTIPLIERS[equipmentType] ?? 1.0
+  const equipmentSurcharge = baseRate * (multiplier - 1)
+  const excessLbs         = Math.max(0, weightLbs - WEIGHT_THRESHOLD)
+  const weightSurcharge   = (excessLbs / 100) * WEIGHT_RATE
+  const fuelSurcharge     = 0 // Phase 2
+  const total             = baseRate + equipmentSurcharge + weightSurcharge + fuelSurcharge
+
+  return {
+    base_rate:           round2(baseRate),
+    equipment_surcharge: round2(equipmentSurcharge),
+    weight_surcharge:    round2(weightSurcharge),
+    fuel_surcharge:      round2(fuelSurcharge),
+    total:               round2(total),
   }
-  
-  const base = baseRatePerMile[equipment] || 2.85
-  const distanceCost = distance * base
-  const weightFactor = weight > 42000 ? 1.1 : 1.0
-  const accessorialCost = accessorials.length * 75
-  
-  return Math.round((distanceCost * weightFactor + accessorialCost) * 100) / 100
 }
+
+function round2(n: number) {
+  return Math.round(n * 100) / 100
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function PricingBreakdown({ formData }: PricingBreakdownProps) {
-  const distance = useMemo(
-    () => calculateDistance(formData.origin, formData.destination),
-    [formData.origin, formData.destination]
+  const hasRoute = formData.origin_city.length > 0 && formData.destination_city.length > 0
+
+  // Base rate is not known until the backend responds with a quote.
+  // We show a placeholder preview using a rough estimate so the user
+  // sees something meaningful while filling in the form.
+  // The real number comes from QuoteSummary after submission.
+  const PREVIEW_BASE_RATE = 450 // rough Canadian lane average
+
+  const breakdown = useMemo(
+    () => calculateBreakdown(PREVIEW_BASE_RATE, formData.equipment_type, formData.weight_lbs),
+    [formData.equipment_type, formData.weight_lbs],
   )
 
-  const transitDays = useMemo(() => Math.ceil(distance / 500) || 1, [distance])
+  const equipmentLabel =
+    equipmentTypes.find((e) => e.value === formData.equipment_type)?.label ?? 'Dry Van'
 
-  const rate = useMemo(
-    () => calculateRate(distance, formData.equipment, formData.weight, formData.accessorials),
-    [distance, formData.equipment, formData.weight, formData.accessorials]
-  )
-
-  const ratePerMile = distance > 0 ? (rate / distance).toFixed(2) : '0.00'
-  const margin = rate * 0.18
-  const equipmentLabel = equipmentTypes.find((e) => e.value === formData.equipment)?.label || 'Dry Van'
-
-  const lineItems = [
-    { label: 'Base Rate', value: rate - formData.accessorials.length * 75 },
-    ...formData.accessorials.map((acc) => ({ label: acc, value: 75 })),
-  ]
-
-  const hasRoute = formData.origin && formData.destination
+  const fmt = (n: number) =>
+    n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
     <Card className="sticky top-6 bg-card">
       <CardHeader className="border-b border-border pb-4">
         <CardTitle className="flex items-center gap-2 text-base font-medium">
           <DollarSign className="h-4 w-4 text-primary" />
-          Live Pricing
+          Live Pricing Preview
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
-        {/* Route Summary */}
+
+        {/* Route summary */}
         <div className="mb-6 space-y-3">
           <div className="flex items-center gap-3">
             <MapPin className="h-4 w-4 text-muted-foreground" />
             <div className="flex-1">
               <p className="text-xs text-muted-foreground">Route</p>
               <p className="text-sm font-medium text-foreground">
-                {hasRoute ? `${formData.origin.split(',')[0]} → ${formData.destination.split(',')[0]}` : 'Enter route details'}
+                {hasRoute
+                  ? `${formData.origin_city}, ${formData.origin_province} → ${formData.destination_city}, ${formData.destination_province}`
+                  : 'Enter route details'}
               </p>
             </div>
           </div>
+
           <div className="flex items-center gap-3">
             <Truck className="h-4 w-4 text-muted-foreground" />
             <div className="flex-1">
@@ -94,73 +100,107 @@ export function PricingBreakdown({ formData }: PricingBreakdownProps) {
               <p className="text-sm font-medium text-foreground">{equipmentLabel}</p>
             </div>
           </div>
+
           <div className="flex items-center gap-3">
             <Scale className="h-4 w-4 text-muted-foreground" />
             <div className="flex-1">
               <p className="text-xs text-muted-foreground">Weight</p>
-              <p className="text-sm font-medium text-foreground">{formData.weight.toLocaleString()} lbs</p>
+              <p className="text-sm font-medium text-foreground">
+                {(formData.weight_lbs ?? 0).toLocaleString('en-CA')} lbs
+              </p>
             </div>
           </div>
+
+          {formData.pickup_date && (
+            <div className="flex items-center gap-3">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">Pickup Date</p>
+                <p className="text-sm font-medium text-foreground">
+                  {formData.pickup_date.toLocaleDateString('en-CA', {
+                    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+                  })}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <Separator className="my-4" />
 
-        {/* Metrics */}
-        <div className="mb-6 grid grid-cols-2 gap-4">
-          <div className="rounded-lg bg-secondary/50 p-3">
-            <p className="text-xs text-muted-foreground">Distance</p>
-            <p className="text-lg font-semibold text-foreground">{distance.toLocaleString()} mi</p>
-          </div>
-          <div className="rounded-lg bg-secondary/50 p-3">
-            <p className="text-xs text-muted-foreground">Transit Time</p>
-            <p className="text-lg font-semibold text-foreground">{transitDays} day{transitDays > 1 ? 's' : ''}</p>
-          </div>
-        </div>
-
-        <Separator className="my-4" />
-
-        {/* Line Items */}
+        {/* Rate breakdown line items */}
         <div className="space-y-2">
-          {lineItems.map((item, idx) => (
-            <div key={idx} className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{item.label}</span>
-              <span className="text-foreground">${item.value.toLocaleString()}</span>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Base Rate</span>
+            <span className="text-foreground">${fmt(breakdown.base_rate)}</span>
+          </div>
+
+          {breakdown.equipment_surcharge > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Equipment Surcharge ({equipmentLabel})
+              </span>
+              <span className="text-foreground">+${fmt(breakdown.equipment_surcharge)}</span>
             </div>
-          ))}
+          )}
+
+          {breakdown.weight_surcharge > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Weight Surcharge (&gt;10,000 lbs)
+              </span>
+              <span className="text-foreground">+${fmt(breakdown.weight_surcharge)}</span>
+            </div>
+          )}
+
+          {formData.accessorials.length > 0 && (
+            formData.accessorials.map((acc) => (
+              <div key={acc} className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{acc}</span>
+                <span className="text-muted-foreground text-xs italic">TBD</span>
+              </div>
+            ))
+          )}
         </div>
 
         <Separator className="my-4" />
 
         {/* Total */}
         <div className="flex items-center justify-between">
-          <span className="text-base font-medium text-foreground">Total Rate</span>
-          <span className="text-2xl font-bold text-primary">${rate.toLocaleString()}</span>
-        </div>
-
-        <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-          <span>${ratePerMile}/mile</span>
-          <span className="flex items-center gap-1 text-emerald-500">
-            <TrendingUp className="h-3 w-3" />
-            ${margin.toFixed(0)} est. margin (18%)
+          <span className="text-base font-medium text-foreground">Est. Total</span>
+          <span className="text-2xl font-bold text-primary">
+            ${fmt(breakdown.total)}
           </span>
         </div>
 
-        {/* Market comparison */}
+        <p className="mt-1 text-xs text-muted-foreground">
+          * Preview only — exact rate calculated after submission
+        </p>
+
+        <div className="mt-2 flex items-center justify-end text-xs text-emerald-500">
+          <TrendingUp className="mr-1 h-3 w-3" />
+          ~${fmt(breakdown.total * 0.18)} est. margin (18%)
+        </div>
+
+        {/* Market position placeholder */}
         <div className="mt-6 rounded-lg border border-border bg-secondary/30 p-4">
           <p className="text-xs font-medium text-muted-foreground">Market Position</p>
           <div className="mt-2 flex items-center gap-2">
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-border">
               <div
-                className="h-full bg-primary transition-all"
+                className="h-full bg-primary transition-all duration-500"
                 style={{ width: hasRoute ? '65%' : '0%' }}
               />
             </div>
             <span className="text-xs text-primary">65th percentile</span>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {hasRoute ? 'Your rate is competitive for this lane' : 'Enter route to see market position'}
+            {hasRoute
+              ? 'Rate is competitive for this lane'
+              : 'Enter route to see market position'}
           </p>
         </div>
+
       </CardContent>
     </Card>
   )

@@ -1,10 +1,9 @@
-import { useState } from 'react'
-import { format, parseISO, subDays } from 'date-fns'
-import { Search, ArrowRight, TrendingUp, TrendingDown, Clock, MapPin, DollarSign, BarChart3, Sparkles } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { format, subDays } from 'date-fns'
+import { Search, ArrowRight, TrendingUp, Clock, MapPin, DollarSign, BarChart3, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -18,41 +17,85 @@ import {
   Bar,
   BarChart,
 } from 'recharts'
-import { mockLanes } from '@/src/data/mockData'
-import type { Lane } from '@/src/data/mockData'
+import { fetchLanes, searchLanes } from '@/lib/api'
+import type { Lane } from '@/src/types/quote'
 import { cn } from '@/lib/utils'
 
-// Generate historical rate data for a lane
-function generateLaneHistory() {
+// Simulated rate history chart data — will be replaced with real
+// historical quote data in a future phase
+function generateLaneHistory(baseRate: number) {
   return Array.from({ length: 14 }, (_, i) => ({
     date: format(subDays(new Date(), 13 - i), 'MMM dd'),
-    rate: 2000 + Math.random() * 800,
-    volume: Math.floor(20 + Math.random() * 50),
+    rate: baseRate + Math.random() * 100 - 50,
+    volume: Math.floor(5 + Math.random() * 20),
   }))
 }
 
 export function LaneIntelligence() {
+  const [lanes, setLanes]             = useState<Lane[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [error, setError]             = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedLane, setSelectedLane] = useState<Lane | null>(mockLanes[0])
-  const laneHistory = generateLaneHistory()
+  const [selectedLane, setSelectedLane] = useState<Lane | null>(null)
 
-  const filteredLanes = mockLanes.filter(
-    (lane) =>
-      lane.origin.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lane.destination.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  // Load all lanes on mount
+  useEffect(() => {
+    fetchLanes()
+      .then((data) => {
+        setLanes(data)
+        setSelectedLane(data[0] ?? null) // auto-select first lane
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Search lanes as user types — debounce not needed for small dataset
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      fetchLanes().then(setLanes).catch(console.error)
+      return
+    }
+    searchLanes(searchQuery, 'both')
+      .then(setLanes)
+      .catch(console.error)
+  }, [searchQuery])
+
+  const laneHistory = selectedLane
+    ? generateLaneHistory(parseFloat(selectedLane.base_rate))
+    : []
+
+  if (loading) {
+    return (
+      <Card className="bg-card">
+        <CardContent className="p-6">
+          <p className="text-sm text-muted-foreground">Loading lanes...</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (error) {
+    return (
+      <Card className="bg-card">
+        <CardContent className="p-6">
+          <p className="text-sm text-red-500">Failed to load lanes: {error}</p>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Lane List */}
+
+        {/* ── Lane List ───────────────────────────────────────────── */}
         <Card className="bg-card lg:col-span-1">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Top Lanes</CardTitle>
+            <CardTitle className="text-base font-medium">Available Lanes</CardTitle>
             <div className="relative mt-2">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search lanes..."
+                placeholder="Search by city..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -61,50 +104,51 @@ export function LaneIntelligence() {
           </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[500px]">
-              <div className="flex flex-col">
-                {filteredLanes.map((lane) => (
-                  <button
-                    key={lane.id}
-                    onClick={() => setSelectedLane(lane)}
-                    className={cn(
-                      'flex flex-col gap-2 border-b border-border px-6 py-4 text-left transition-colors hover:bg-muted/30',
-                      selectedLane?.id === lane.id && 'bg-muted/50'
-                    )}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                      <span>{lane.origin.split(',')[0]}</span>
-                      <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                      <span>{lane.destination.split(',')[0]}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg font-semibold text-primary">
-                        ${lane.avgRate.toLocaleString()}
-                      </span>
-                      <Badge
-                        className={cn(
-                          'text-[10px]',
-                          lane.volumePercentile > 75
-                            ? 'bg-emerald-500/10 text-emerald-500'
-                            : lane.volumePercentile > 50
-                            ? 'bg-amber-500/10 text-amber-500'
-                            : 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        {lane.volumePercentile}th percentile
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span>{lane.distance} mi</span>
-                      <span>{lane.avgTransitDays} day(s)</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              {lanes.length === 0 ? (
+                <p className="px-6 py-4 text-sm text-muted-foreground">No lanes found.</p>
+              ) : (
+                <div className="flex flex-col">
+                  {lanes.map((lane) => (
+                    <button
+                      key={lane.id}
+                      onClick={() => setSelectedLane(lane)}
+                      className={cn(
+                        'flex flex-col gap-2 border-b border-border px-6 py-4 text-left transition-colors hover:bg-muted/30',
+                        selectedLane?.id === lane.id && 'bg-muted/50'
+                      )}
+                    >
+                      {/* Origin → Destination */}
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <span>{lane.origin_city}</span>
+                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                        <span>{lane.destination_city}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-lg font-semibold text-primary">
+                          ${parseFloat(lane.base_rate).toLocaleString('en-CA', {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
+                        {/* Province badges */}
+                        <Badge className="text-[10px] bg-muted text-muted-foreground">
+                          {lane.origin_province} → {lane.destination_province}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span>{lane.distance_km} km</span>
+                        <span>{lane.transit_days} day{lane.transit_days > 1 ? 's' : ''}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </ScrollArea>
           </CardContent>
         </Card>
 
-        {/* Lane Details */}
+        {/* ── Lane Details ─────────────────────────────────────────── */}
         <div className="flex flex-col gap-6 lg:col-span-2">
           {selectedLane ? (
             <>
@@ -115,51 +159,50 @@ export function LaneIntelligence() {
                     <div>
                       <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
                         <MapPin className="h-5 w-5 text-primary" />
-                        <span>{selectedLane.origin}</span>
+                        <span>{selectedLane.origin_city}, {selectedLane.origin_province}</span>
                         <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                        <span>{selectedLane.destination}</span>
+                        <span>{selectedLane.destination_city}, {selectedLane.destination_province}</span>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Last updated: {format(parseISO(selectedLane.lastUpdated), 'MMM d, h:mm a')}
+                        {selectedLane.origin_postal} → {selectedLane.destination_postal}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary">
-                        ${selectedLane.avgRate.toLocaleString()}
+                        ${parseFloat(selectedLane.base_rate).toLocaleString('en-CA', {
+                          minimumFractionDigits: 2,
+                        })}
                       </p>
-                      <p className="text-xs text-muted-foreground">Average Rate</p>
+                      <p className="text-xs text-muted-foreground">Base Rate (CAD)</p>
                     </div>
                   </div>
 
                   {/* Quick Stats */}
-                  <div className="mt-6 grid grid-cols-4 gap-4">
+                  <div className="mt-6 grid grid-cols-3 gap-4">
                     <div className="rounded-lg bg-secondary/50 p-3">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <DollarSign className="h-4 w-4" />
-                        <span className="text-xs">Min Rate</span>
+                        <span className="text-xs">Base Rate</span>
                       </div>
-                      <p className="mt-1 text-lg font-semibold">${selectedLane.minRate.toLocaleString()}</p>
-                    </div>
-                    <div className="rounded-lg bg-secondary/50 p-3">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <DollarSign className="h-4 w-4" />
-                        <span className="text-xs">Max Rate</span>
-                      </div>
-                      <p className="mt-1 text-lg font-semibold">${selectedLane.maxRate.toLocaleString()}</p>
+                      <p className="mt-1 text-lg font-semibold">
+                        ${parseFloat(selectedLane.base_rate).toLocaleString('en-CA')}
+                      </p>
                     </div>
                     <div className="rounded-lg bg-secondary/50 p-3">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Clock className="h-4 w-4" />
-                        <span className="text-xs">Transit</span>
+                        <span className="text-xs">Transit Time</span>
                       </div>
-                      <p className="mt-1 text-lg font-semibold">{selectedLane.avgTransitDays} day(s)</p>
+                      <p className="mt-1 text-lg font-semibold">
+                        {selectedLane.transit_days} day{selectedLane.transit_days > 1 ? 's' : ''}
+                      </p>
                     </div>
                     <div className="rounded-lg bg-secondary/50 p-3">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <MapPin className="h-4 w-4" />
                         <span className="text-xs">Distance</span>
                       </div>
-                      <p className="mt-1 text-lg font-semibold">{selectedLane.distance} mi</p>
+                      <p className="mt-1 text-lg font-semibold">{selectedLane.distance_km} km</p>
                     </div>
                   </div>
                 </CardContent>
@@ -188,34 +231,14 @@ export function LaneIntelligence() {
                               </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0.015 260)" vertical={false} />
-                            <XAxis
-                              dataKey="date"
-                              axisLine={false}
-                              tickLine={false}
-                              tick={{ fill: 'oklch(0.65 0 0)', fontSize: 11 }}
-                            />
-                            <YAxis
-                              axisLine={false}
-                              tickLine={false}
-                              tick={{ fill: 'oklch(0.65 0 0)', fontSize: 11 }}
-                              tickFormatter={(value) => `$${value}`}
-                            />
+                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'oklch(0.65 0 0)', fontSize: 11 }} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fill: 'oklch(0.65 0 0)', fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
                             <Tooltip
-                              contentStyle={{
-                                backgroundColor: 'oklch(0.15 0.01 260)',
-                                border: '1px solid oklch(0.25 0.015 260)',
-                                borderRadius: '8px',
-                              }}
+                              contentStyle={{ backgroundColor: 'oklch(0.15 0.01 260)', border: '1px solid oklch(0.25 0.015 260)', borderRadius: '8px' }}
                               labelStyle={{ color: 'oklch(0.95 0 0)' }}
                               formatter={(value: number) => [`$${value.toFixed(0)}`, 'Rate']}
                             />
-                            <Area
-                              type="monotone"
-                              dataKey="rate"
-                              stroke="oklch(0.72 0.18 195)"
-                              strokeWidth={2}
-                              fill="url(#laneRateGradient)"
-                            />
+                            <Area type="monotone" dataKey="rate" stroke="oklch(0.72 0.18 195)" strokeWidth={2} fill="url(#laneRateGradient)" />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
@@ -225,23 +248,10 @@ export function LaneIntelligence() {
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={laneHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0.015 260)" vertical={false} />
-                            <XAxis
-                              dataKey="date"
-                              axisLine={false}
-                              tickLine={false}
-                              tick={{ fill: 'oklch(0.65 0 0)', fontSize: 11 }}
-                            />
-                            <YAxis
-                              axisLine={false}
-                              tickLine={false}
-                              tick={{ fill: 'oklch(0.65 0 0)', fontSize: 11 }}
-                            />
+                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'oklch(0.65 0 0)', fontSize: 11 }} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fill: 'oklch(0.65 0 0)', fontSize: 11 }} />
                             <Tooltip
-                              contentStyle={{
-                                backgroundColor: 'oklch(0.15 0.01 260)',
-                                border: '1px solid oklch(0.25 0.015 260)',
-                                borderRadius: '8px',
-                              }}
+                              contentStyle={{ backgroundColor: 'oklch(0.15 0.01 260)', border: '1px solid oklch(0.25 0.015 260)', borderRadius: '8px' }}
                               labelStyle={{ color: 'oklch(0.95 0 0)' }}
                             />
                             <Bar dataKey="volume" fill="oklch(0.72 0.18 195)" radius={[4, 4, 0, 0]} />
@@ -253,12 +263,12 @@ export function LaneIntelligence() {
                 </CardContent>
               </Card>
 
-              {/* AI Insights */}
+              {/* Lane Insights — static for now, AI-powered in Phase 3 */}
               <Card className="bg-card">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base font-medium">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    AI Lane Insights
+                    Lane Insights
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -268,10 +278,11 @@ export function LaneIntelligence() {
                         <TrendingUp className="h-4 w-4 text-emerald-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">Strong demand corridor</p>
+                        <p className="text-sm font-medium text-foreground">Active corridor</p>
                         <p className="text-xs text-muted-foreground">
-                          This lane shows consistent volume in the {selectedLane.volumePercentile}th percentile. 
-                          Consider building carrier relationships for this route.
+                          {selectedLane.origin_city} → {selectedLane.destination_city} is a{' '}
+                          {selectedLane.transit_days === 1 ? 'same-day' : `${selectedLane.transit_days}-day`} lane
+                          covering {selectedLane.distance_km} km.
                         </p>
                       </div>
                     </div>
@@ -280,10 +291,11 @@ export function LaneIntelligence() {
                         <BarChart3 className="h-4 w-4 text-primary" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">Rate spread analysis</p>
+                        <p className="text-sm font-medium text-foreground">Rate guidance</p>
                         <p className="text-xs text-muted-foreground">
-                          Rate variance of ${selectedLane.maxRate - selectedLane.minRate} indicates moderate market
-                          volatility. Target rates around ${Math.round(selectedLane.avgRate * 0.95)} for competitive quotes.
+                          Base rate is ${parseFloat(selectedLane.base_rate).toFixed(2)} CAD.
+                          Reefer adds 30% (${(parseFloat(selectedLane.base_rate) * 0.3).toFixed(2)}) and
+                          flatbed adds 15% (${(parseFloat(selectedLane.base_rate) * 0.15).toFixed(2)}).
                         </p>
                       </div>
                     </div>

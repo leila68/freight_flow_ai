@@ -2,28 +2,35 @@ import { useState } from 'react'
 import { QuoteForm } from '@/src/components/quote/QuoteForm'
 import { QuoteSummary } from '@/src/components/quote/QuoteSummary'
 import { PricingBreakdown } from '@/src/components/quote/PricingBreakdown'
+import type { EquipmentType } from '@/src/types/quote'
 
+// QuoteFormData matches backend field names exactly so we never
+// need to transform data before sending it to the API.
 export interface QuoteFormData {
-  origin: string
-  destination: string
-  equipment: string
-  weight: number
-  pickupDate: Date | undefined
-  accessorials: string[]
+  origin_city:          string
+  origin_province:      string
+  destination_city:     string
+  destination_province: string
+  equipment_type:       EquipmentType
+  weight_lbs:           number
+  pickup_date:          Date | undefined
+  accessorials:         string[]
 }
 
-const initialFormData: QuoteFormData = {
-  origin: '',
-  destination: '',
-  equipment: 'dry_van',
-  weight: 40000,
-  pickupDate: undefined,
-  accessorials: [],
+export const initialFormData: QuoteFormData = {
+  origin_city:          '',
+  origin_province:      '',
+  destination_city:     '',
+  destination_province: '',
+  equipment_type:       'dry_van',
+  weight_lbs:           40000,
+  pickup_date:          undefined,
+  accessorials:         [],
 }
 
 export function QuoteEngine() {
-  const [formData, setFormData] = useState<QuoteFormData>(initialFormData)
-  const [step, setStep] = useState(1)
+  const [formData, setFormData]     = useState<QuoteFormData>(initialFormData)
+  const [step, setStep]             = useState(1)
   const [showSummary, setShowSummary] = useState(false)
 
   const handleFormChange = (data: Partial<QuoteFormData>) => {
@@ -39,9 +46,7 @@ export function QuoteEngine() {
   }
 
   const handlePrevStep = () => {
-    if (step > 1) {
-      setStep(step - 1)
-    }
+    if (step > 1) setStep(step - 1)
   }
 
   const handleReset = () => {
@@ -53,7 +58,7 @@ export function QuoteEngine() {
   return (
     <div className="mx-auto max-w-6xl">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        {/* Form Section - Takes 3 columns */}
+        {/* Form — 3 columns */}
         <div className="lg:col-span-3">
           {showSummary ? (
             <QuoteSummary formData={formData} onReset={handleReset} />
@@ -68,7 +73,7 @@ export function QuoteEngine() {
           )}
         </div>
 
-        {/* Pricing Breakdown - Takes 2 columns */}
+        {/* Pricing Breakdown — 2 columns */}
         <div className="lg:col-span-2">
           <PricingBreakdown formData={formData} />
         </div>

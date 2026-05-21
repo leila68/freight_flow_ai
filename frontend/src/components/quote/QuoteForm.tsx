@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { MapPin, Truck, Package, Calendar, Check, ChevronRight, ChevronLeft } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,65 +10,155 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
-import { equipmentTypes, accessorialOptions, popularCities } from '@/src/data/mockData'
+import { searchLanes } from '@/lib/api'
+import { equipmentTypes, accessorialOptions } from '@/src/data/mockData'
+import type { Lane } from '@/src/types/quote'
 import type { QuoteFormData } from '@/src/pages/QuoteEngine'
 
 interface QuoteFormProps {
-  formData: QuoteFormData
-  step: number
+  formData:     QuoteFormData
+  step:         number
   onFormChange: (data: Partial<QuoteFormData>) => void
-  onNextStep: () => void
-  onPrevStep: () => void
+  onNextStep:   () => void
+  onPrevStep:   () => void
 }
 
 const steps = [
-  { id: 1, name: 'Route', icon: MapPin },
+  { id: 1, name: 'Route',    icon: MapPin  },
   { id: 2, name: 'Shipment', icon: Package },
-  { id: 3, name: 'Options', icon: Truck },
+  { id: 3, name: 'Options',  icon: Truck   },
 ]
 
 export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep }: QuoteFormProps) {
-  const [originSuggestions, setOriginSuggestions] = useState<string[]>([])
-  const [destSuggestions, setDestSuggestions] = useState<string[]>([])
+  // Autocomplete state
+  const [originInput, setOriginInput]       = useState(
+    formData.origin_city
+      ? `${formData.origin_city}, ${formData.origin_province}`
+      : ''
+  )
+  const [destInput, setDestInput]           = useState(
+    formData.destination_city
+      ? `${formData.destination_city}, ${formData.destination_province}`
+      : ''
+  )
+  const [originSuggestions, setOriginSuggestions] = useState<Lane[]>([])
+  const [destSuggestions, setDestSuggestions]     = useState<Lane[]>([])
+  const [loadingOrigin, setLoadingOrigin]   = useState(false)
+  const [loadingDest, setLoadingDest]       = useState(false)
 
-  const handleOriginChange = (value: string) => {
-    onFormChange({ origin: value })
-    if (value.length > 1) {
-      const filtered = popularCities.filter((city) =>
-        city.toLowerCase().includes(value.toLowerCase())
-      )
-      setOriginSuggestions(filtered.slice(0, 5))
-    } else {
+  // Refs to close dropdowns on outside click
+  const originRef = useRef<HTMLDivElement>(null)
+  const destRef   = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (originRef.current && !originRef.current.contains(e.target as Node)) {
+        setOriginSuggestions([])
+      }
+      if (destRef.current && !destRef.current.contains(e.target as Node)) {
+        setDestSuggestions([])
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // ── Origin search ──────────────────────────────────────────────────────────
+  const handleOriginInput = async (value: string) => {
+    setOriginInput(value)
+    // Clear selection if user edits after picking
+    onFormChange({ origin_city: '', origin_province: '' })
+
+    if (value.trim().length < 2) {
       setOriginSuggestions([])
+      return
+    }
+    setLoadingOrigin(true)
+    try {
+      const lanes = await searchLanes(value, 'origin')
+      // Deduplicate by city+province
+      const seen  = new Set<string>()
+      const unique = lanes.filter((l) => {
+        const key = `${l.origin_city}-${l.origin_province}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      setOriginSuggestions(unique.slice(0, 5))
+    } catch {
+      setOriginSuggestions([])
+    } finally {
+      setLoadingOrigin(false)
     }
   }
 
-  const handleDestChange = (value: string) => {
-    onFormChange({ destination: value })
-    if (value.length > 1) {
-      const filtered = popularCities.filter((city) =>
-        city.toLowerCase().includes(value.toLowerCase())
-      )
-      setDestSuggestions(filtered.slice(0, 5))
-    } else {
+  const selectOrigin = (lane: Lane) => {
+    onFormChange({
+      origin_city:     lane.origin_city,
+      origin_province: lane.origin_province,
+    })
+    setOriginInput(`${lane.origin_city}, ${lane.origin_province}`)
+    setOriginSuggestions([])
+  }
+
+  // ── Destination search ─────────────────────────────────────────────────────
+  const handleDestInput = async (value: string) => {
+    setDestInput(value)
+    onFormChange({ destination_city: '', destination_province: '' })
+
+    if (value.trim().length < 2) {
       setDestSuggestions([])
+      return
+    }
+    setLoadingDest(true)
+    try {
+      const lanes = await searchLanes(value, 'destination')
+      const seen  = new Set<string>()
+      const unique = lanes.filter((l) => {
+        const key = `${l.destination_city}-${l.destination_province}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      setDestSuggestions(unique.slice(0, 5))
+    } catch {
+      setDestSuggestions([])
+    } finally {
+      setLoadingDest(false)
     }
   }
 
+  const selectDestination = (lane: Lane) => {
+    onFormChange({
+      destination_city:     lane.destination_city,
+      destination_province: lane.destination_province,
+    })
+    setDestInput(`${lane.destination_city}, ${lane.destination_province}`)
+    setDestSuggestions([])
+  }
+
+  // ── Accessorials ───────────────────────────────────────────────────────────
   const handleAccessorialToggle = (accessorial: string) => {
-    const current = formData.accessorials
-    const updated = current.includes(accessorial)
-      ? current.filter((a) => a !== accessorial)
-      : [...current, accessorial]
+    const updated = formData.accessorials.includes(accessorial)
+      ? formData.accessorials.filter((a) => a !== accessorial)
+      : [...formData.accessorials, accessorial]
     onFormChange({ accessorials: updated })
   }
 
+  // ── Step validation ────────────────────────────────────────────────────────
   const isStepValid = () => {
     switch (step) {
       case 1:
-        return formData.origin.length > 2 && formData.destination.length > 2
+        // Both city+province must be set (means user selected from dropdown)
+        return (
+          formData.origin_city.length > 0 &&
+          formData.origin_province.length > 0 &&
+          formData.destination_city.length > 0 &&
+          formData.destination_province.length > 0 &&
+          formData.pickup_date !== undefined
+        )
       case 2:
-        return formData.equipment && formData.weight > 0
+        return formData.equipment_type !== undefined && formData.weight_lbs > 0
       case 3:
         return true
       default:
@@ -80,7 +170,8 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
     <Card className="bg-card">
       <CardHeader className="border-b border-border pb-4">
         <CardTitle className="text-lg font-medium">Create New Quote</CardTitle>
-        {/* Steps indicator */}
+
+        {/* Step indicator */}
         <div className="mt-4 flex items-center justify-between">
           {steps.map((s, index) => (
             <div key={s.id} className="flex items-center">
@@ -95,22 +186,12 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
                 >
                   {step > s.id ? <Check className="h-4 w-4" /> : <s.icon className="h-4 w-4" />}
                 </div>
-                <span
-                  className={cn(
-                    'text-sm font-medium',
-                    step >= s.id ? 'text-foreground' : 'text-muted-foreground'
-                  )}
-                >
+                <span className={cn('text-sm font-medium', step >= s.id ? 'text-foreground' : 'text-muted-foreground')}>
                   {s.name}
                 </span>
               </div>
               {index < steps.length - 1 && (
-                <div
-                  className={cn(
-                    'mx-4 h-0.5 w-16 transition-colors',
-                    step > s.id ? 'bg-primary' : 'bg-border'
-                  )}
-                />
+                <div className={cn('mx-4 h-0.5 w-16 transition-colors', step > s.id ? 'bg-primary' : 'bg-border')} />
               )}
             </div>
           ))}
@@ -118,89 +199,104 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
       </CardHeader>
 
       <CardContent className="p-6">
-        {/* Step 1: Route */}
+
+        {/* ── Step 1: Route ─────────────────────────────────────────── */}
         {step === 1 && (
           <div className="space-y-6">
+
+            {/* Origin */}
             <div className="space-y-2">
               <Label>Origin</Label>
-              <div className="relative">
+              <div className="relative" ref={originRef}>
                 <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Enter origin city"
-                  value={formData.origin}
-                  onChange={(e) => handleOriginChange(e.target.value)}
+                  placeholder="Type a city (e.g. Toronto)"
+                  value={originInput}
+                  onChange={(e) => handleOriginInput(e.target.value)}
                   className="pl-10"
                 />
-                {originSuggestions.length > 0 && (
+                {/* Selected indicator */}
+                {formData.origin_city && (
+                  <Check className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
+                )}
+                {/* Dropdown */}
+                {(originSuggestions.length > 0 || loadingOrigin) && (
                   <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg">
-                    {originSuggestions.map((city) => (
-                      <button
-                        key={city}
-                        type="button"
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-muted"
-                        onClick={() => {
-                          onFormChange({ origin: city })
-                          setOriginSuggestions([])
-                        }}
-                      >
-                        {city}
-                      </button>
-                    ))}
+                    {loadingOrigin ? (
+                      <p className="px-4 py-2 text-sm text-muted-foreground">Searching...</p>
+                    ) : (
+                      originSuggestions.map((lane) => (
+                        <button
+                          key={`${lane.origin_city}-${lane.origin_province}`}
+                          type="button"
+                          className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-muted"
+                          onClick={() => selectOrigin(lane)}
+                        >
+                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                          {lane.origin_city}, {lane.origin_province}
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
             </div>
 
+            {/* Destination */}
             <div className="space-y-2">
               <Label>Destination</Label>
-              <div className="relative">
+              <div className="relative" ref={destRef}>
                 <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Enter destination city"
-                  value={formData.destination}
-                  onChange={(e) => handleDestChange(e.target.value)}
+                  placeholder="Type a city (e.g. Montreal)"
+                  value={destInput}
+                  onChange={(e) => handleDestInput(e.target.value)}
                   className="pl-10"
                 />
-                {destSuggestions.length > 0 && (
+                {formData.destination_city && (
+                  <Check className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500" />
+                )}
+                {(destSuggestions.length > 0 || loadingDest) && (
                   <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg">
-                    {destSuggestions.map((city) => (
-                      <button
-                        key={city}
-                        type="button"
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-muted"
-                        onClick={() => {
-                          onFormChange({ destination: city })
-                          setDestSuggestions([])
-                        }}
-                      >
-                        {city}
-                      </button>
-                    ))}
+                    {loadingDest ? (
+                      <p className="px-4 py-2 text-sm text-muted-foreground">Searching...</p>
+                    ) : (
+                      destSuggestions.map((lane) => (
+                        <button
+                          key={`${lane.destination_city}-${lane.destination_province}`}
+                          type="button"
+                          className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-muted"
+                          onClick={() => selectDestination(lane)}
+                        >
+                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                          {lane.destination_city}, {lane.destination_province}
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
             </div>
 
+            {/* Pickup Date */}
             <div className="space-y-2">
               <Label>Pickup Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className={cn(
-                      'w-full justify-start text-left font-normal',
-                      !formData.pickupDate && 'text-muted-foreground'
-                    )}
+                    className={cn('w-full justify-start text-left font-normal', !formData.pickup_date && 'text-muted-foreground')}
                   >
                     <Calendar className="mr-2 h-4 w-4" />
-                    {formData.pickupDate ? format(formData.pickupDate, 'PPP') : 'Select pickup date'}
+                    {formData.pickup_date ? format(formData.pickup_date, 'PPP') : 'Select pickup date'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <CalendarComponent
                     mode="single"
-                    selected={formData.pickupDate}
-                    onSelect={(date) => onFormChange({ pickupDate: date })}
+                    selected={formData.pickup_date}
+                    onSelect={(date) => onFormChange({ pickup_date: date })}
+                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                     initialFocus
                   />
                 </PopoverContent>
@@ -209,14 +305,14 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
           </div>
         )}
 
-        {/* Step 2: Shipment Details */}
+        {/* ── Step 2: Shipment Details ──────────────────────────────── */}
         {step === 2 && (
           <div className="space-y-6">
             <div className="space-y-2">
               <Label>Equipment Type</Label>
               <Select
-                value={formData.equipment}
-                onValueChange={(value) => onFormChange({ equipment: value })}
+                value={formData.equipment_type}
+                onValueChange={(value) => onFormChange({ equipment_type: value as any })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select equipment type" />
@@ -235,19 +331,23 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
               <Label>Weight (lbs)</Label>
               <Input
                 type="number"
-                value={formData.weight}
-                onChange={(e) => onFormChange({ weight: parseInt(e.target.value) || 0 })}
+                value={formData.weight_lbs}
+                onChange={(e) => onFormChange({ weight_lbs: parseInt(e.target.value) || 0 })}
                 placeholder="Enter weight in pounds"
+                min={1}
+                max={48000}
               />
-              <p className="text-xs text-muted-foreground">Standard full truckload: 40,000 - 45,000 lbs</p>
+              <p className="text-xs text-muted-foreground">
+                Standard full truckload: 40,000 – 45,000 lbs · Max: 48,000 lbs
+              </p>
             </div>
           </div>
         )}
 
-        {/* Step 3: Accessorials */}
+        {/* ── Step 3: Accessorials ──────────────────────────────────── */}
         {step === 3 && (
           <div className="space-y-4">
-            <Label>Select Accessorials</Label>
+            <Label>Select Accessorials (optional)</Label>
             <div className="grid grid-cols-2 gap-3">
               {accessorialOptions.map((accessorial) => (
                 <div
@@ -271,7 +371,7 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
           </div>
         )}
 
-        {/* Navigation buttons */}
+        {/* Navigation */}
         <div className="mt-8 flex items-center justify-between">
           <Button variant="outline" onClick={onPrevStep} disabled={step === 1}>
             <ChevronLeft className="mr-1 h-4 w-4" />
