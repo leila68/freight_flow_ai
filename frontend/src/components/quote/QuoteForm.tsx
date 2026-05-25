@@ -284,52 +284,18 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
             </div>
 
             {/* Pickup Date */}
-            {/* <div className="space-y-2">
+            <div className="space-y-2">
               <Label>Pickup Date</Label>
-              <Popover open={dateOpen} onOpenChange={setDateOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn('w-full justify-start text-left font-normal', !formData.pickup_date && 'text-muted-foreground')}
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {formData.pickup_date instanceof Date && !isNaN(formData.pickup_date.getTime())
-                      ? format(formData.pickup_date, 'PPP')
-                      : 'Select pickup date'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={
-                      formData.pickup_date
-                        ? new Date(formData.pickup_date)
-                        : undefined
-                    }
-                    onSelect={(date) => {
-                      console.log('date selected:', date)
-                      onFormChange({ pickup_date: date ?? undefined })
-                      setDateOpen(false)
-                    }}
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div> */}
-
-            {/* Pickup Date */}
-<div className="space-y-2">
-  <Label>Pickup Date</Label>
-  <DatePicker
-    selected={formData.pickup_date}
-    onChange={(date: Date | null) => onFormChange({ pickup_date: date ?? undefined })}
-    minDate={new Date()}
-    dateFormat="MMMM d, yyyy"
-    placeholderText="Select pickup date"
-    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-    wrapperClassName="w-full"
-  />
-</div>
+              <DatePicker
+                selected={formData.pickup_date}
+                onChange={(date: Date | null) => onFormChange({ pickup_date: date ?? undefined })}
+                minDate={new Date()}
+                dateFormat="MMMM d, yyyy"
+                placeholderText="Select pickup date"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                wrapperClassName="w-full"
+              />
+            </div>
           </div>
         )}
 
