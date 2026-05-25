@@ -4,8 +4,6 @@ import { QuoteSummary } from '@/src/components/quote/QuoteSummary'
 import { PricingBreakdown } from '@/src/components/quote/PricingBreakdown'
 import type { EquipmentType } from '@/src/types/quote'
 
-// QuoteFormData matches backend field names exactly so we never
-// need to transform data before sending it to the API.
 export interface QuoteFormData {
   origin_city:          string
   origin_province:      string
@@ -29,8 +27,8 @@ export const initialFormData: QuoteFormData = {
 }
 
 export function QuoteEngine() {
-  const [formData, setFormData]     = useState<QuoteFormData>(initialFormData)
-  const [step, setStep]             = useState(1)
+  const [formData, setFormData]       = useState<QuoteFormData>(initialFormData)
+  const [step, setStep]               = useState(1)
   const [showSummary, setShowSummary] = useState(false)
 
   const handleFormChange = (data: Partial<QuoteFormData>) => {
@@ -73,9 +71,9 @@ export function QuoteEngine() {
           )}
         </div>
 
-        {/* Pricing Breakdown — 2 columns */}
+        {/* Pricing Breakdown — 2 columns, receives step for live updates */}
         <div className="lg:col-span-2">
-          <PricingBreakdown formData={formData} />
+          <PricingBreakdown formData={formData} step={step} />
         </div>
       </div>
     </div>

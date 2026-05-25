@@ -9,7 +9,7 @@ export interface Quote {
   destination_city: string
   destination_province: string
   equipment_type: EquipmentType
-  weight_lbs: number
+  weight_lbs: string
   pickup_date: string
   distance_km: number
   transit_days: number

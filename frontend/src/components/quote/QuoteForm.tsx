@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { MapPin, Truck, Package, Calendar, Check, ChevronRight, ChevronLeft } from 'lucide-react'
+// import { MapPin, Truck, Package, Calendar, Check, ChevronRight, ChevronLeft } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,44 +11,49 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { searchLanes } from '@/src/lib/api'
-import { equipmentTypes, accessorialOptions } from '@/src/data/mockData'
 import type { Lane } from '@/src/types/quote'
 import type { QuoteFormData } from '@/src/pages/QuoteEngine'
+import { equipmentTypes, accessorialOptions } from '@/src/lib/constants'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import { MapPin, Truck, Package, Check, ChevronRight, ChevronLeft } from 'lucide-react'
+
 
 interface QuoteFormProps {
-  formData:     QuoteFormData
-  step:         number
+  formData: QuoteFormData
+  step: number
   onFormChange: (data: Partial<QuoteFormData>) => void
-  onNextStep:   () => void
-  onPrevStep:   () => void
+  onNextStep: () => void
+  onPrevStep: () => void
 }
 
 const steps = [
-  { id: 1, name: 'Route',    icon: MapPin  },
+  { id: 1, name: 'Route', icon: MapPin },
   { id: 2, name: 'Shipment', icon: Package },
-  { id: 3, name: 'Options',  icon: Truck   },
+  { id: 3, name: 'Options', icon: Truck },
 ]
 
 export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep }: QuoteFormProps) {
   // Autocomplete state
-  const [originInput, setOriginInput]       = useState(
+  const [originInput, setOriginInput] = useState(
     formData.origin_city
       ? `${formData.origin_city}, ${formData.origin_province}`
       : ''
   )
-  const [destInput, setDestInput]           = useState(
+  const [destInput, setDestInput] = useState(
     formData.destination_city
       ? `${formData.destination_city}, ${formData.destination_province}`
       : ''
   )
   const [originSuggestions, setOriginSuggestions] = useState<Lane[]>([])
-  const [destSuggestions, setDestSuggestions]     = useState<Lane[]>([])
-  const [loadingOrigin, setLoadingOrigin]   = useState(false)
-  const [loadingDest, setLoadingDest]       = useState(false)
+  const [destSuggestions, setDestSuggestions] = useState<Lane[]>([])
+  const [loadingOrigin, setLoadingOrigin] = useState(false)
+  const [loadingDest, setLoadingDest] = useState(false)
+  const [dateOpen, setDateOpen] = useState(false)
 
   // Refs to close dropdowns on outside click
   const originRef = useRef<HTMLDivElement>(null)
-  const destRef   = useRef<HTMLDivElement>(null)
+  const destRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -77,7 +82,7 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
     try {
       const lanes = await searchLanes(value, 'origin')
       // Deduplicate by city+province
-      const seen  = new Set<string>()
+      const seen = new Set<string>()
       const unique = lanes.filter((l) => {
         const key = `${l.origin_city}-${l.origin_province}`
         if (seen.has(key)) return false
@@ -94,7 +99,7 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
 
   const selectOrigin = (lane: Lane) => {
     onFormChange({
-      origin_city:     lane.origin_city,
+      origin_city: lane.origin_city,
       origin_province: lane.origin_province,
     })
     setOriginInput(`${lane.origin_city}, ${lane.origin_province}`)
@@ -113,7 +118,7 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
     setLoadingDest(true)
     try {
       const lanes = await searchLanes(value, 'destination')
-      const seen  = new Set<string>()
+      const seen = new Set<string>()
       const unique = lanes.filter((l) => {
         const key = `${l.destination_city}-${l.destination_province}`
         if (seen.has(key)) return false
@@ -130,7 +135,7 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
 
   const selectDestination = (lane: Lane) => {
     onFormChange({
-      destination_city:     lane.destination_city,
+      destination_city: lane.destination_city,
       destination_province: lane.destination_province,
     })
     setDestInput(`${lane.destination_city}, ${lane.destination_province}`)
@@ -279,29 +284,52 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
             </div>
 
             {/* Pickup Date */}
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label>Pickup Date</Label>
-              <Popover>
+              <Popover open={dateOpen} onOpenChange={setDateOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn('w-full justify-start text-left font-normal', !formData.pickup_date && 'text-muted-foreground')}
                   >
                     <Calendar className="mr-2 h-4 w-4" />
-                    {formData.pickup_date ? format(formData.pickup_date, 'PPP') : 'Select pickup date'}
+                    {formData.pickup_date instanceof Date && !isNaN(formData.pickup_date.getTime())
+                      ? format(formData.pickup_date, 'PPP')
+                      : 'Select pickup date'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <CalendarComponent
                     mode="single"
-                    selected={formData.pickup_date}
-                    onSelect={(date) => onFormChange({ pickup_date: date })}
+                    selected={
+                      formData.pickup_date
+                        ? new Date(formData.pickup_date)
+                        : undefined
+                    }
+                    onSelect={(date) => {
+                      console.log('date selected:', date)
+                      onFormChange({ pickup_date: date ?? undefined })
+                      setDateOpen(false)
+                    }}
                     disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                    initialFocus
                   />
                 </PopoverContent>
               </Popover>
-            </div>
+            </div> */}
+
+            {/* Pickup Date */}
+<div className="space-y-2">
+  <Label>Pickup Date</Label>
+  <DatePicker
+    selected={formData.pickup_date}
+    onChange={(date: Date | null) => onFormChange({ pickup_date: date ?? undefined })}
+    minDate={new Date()}
+    dateFormat="MMMM d, yyyy"
+    placeholderText="Select pickup date"
+    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+    wrapperClassName="w-full"
+  />
+</div>
           </div>
         )}
 
