@@ -49,6 +49,10 @@ export const createQuoteSchema = z.object({
       today.setHours(0, 0, 0, 0);
       return date >= today;
     }, 'Pickup date cannot be in the past'),
+    
+  accessorials: z
+    .array(z.string())
+    .default([]),
 });
 
 export type CreateQuoteBody = z.infer<typeof createQuoteSchema>;
@@ -57,9 +61,9 @@ export type CreateQuoteBody = z.infer<typeof createQuoteSchema>;
 
 export const quoteFiltersSchema = z.object({
   equipment_type: equipmentTypeSchema.optional(),
-  status:         quoteStatusSchema.optional(),
-  date_from:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  date_to:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  status: quoteStatusSchema.optional(),
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   limit: z
     .string()
     .optional()

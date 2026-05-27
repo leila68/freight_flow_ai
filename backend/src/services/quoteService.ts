@@ -91,7 +91,7 @@ export async function createQuote(input: CreateQuoteInput): Promise<Quote> {
         distance_km, transit_days,
         equipment_type, weight_lbs, pickup_date,
         base_rate, equipment_surcharge, weight_surcharge,
-        fuel_surcharge, total_rate
+        fuel_surcharge, total_rate, accessorials
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15
@@ -106,6 +106,7 @@ export async function createQuote(input: CreateQuoteInput): Promise<Quote> {
       breakdown.base_rate,      breakdown.equipment_surcharge,
       breakdown.weight_surcharge, breakdown.fuel_surcharge,
       breakdown.total_rate,
+      JSON.stringify(input.accessorials ?? []),
     ],
   );
 

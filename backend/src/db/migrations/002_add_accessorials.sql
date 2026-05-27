@@ -1,0 +1,2 @@
+ALTER TABLE quotes
+ADD COLUMN accessorials JSONB NOT NULL DEFAULT '[]';
