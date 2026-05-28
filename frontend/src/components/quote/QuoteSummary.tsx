@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { CheckCircle, Download, Share2, RefreshCw, ArrowRight, Clock, MapPin, Truck, Scale, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +19,7 @@ export function QuoteSummary({ formData, onReset }: QuoteSummaryProps) {
   const [quote, setQuote] = useState<Quote | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const hasSubmitted = useRef(false)
 
   const equipmentLabel =
     equipmentTypes.find((e) => e.value === formData.equipment_type)?.label ?? 'Dry Van'
@@ -27,6 +28,8 @@ export function QuoteSummary({ formData, onReset }: QuoteSummaryProps) {
   // (user clicked "Generate Quote" on step 3)
   useEffect(() => {
     if (!formData.pickup_date) return
+    if (hasSubmitted.current) return
+    hasSubmitted.current = true
 
     createQuote({
       origin_city: formData.origin_city,
