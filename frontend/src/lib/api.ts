@@ -83,6 +83,7 @@ export interface CreateQuotePayload {
   equipment_type: 'dry_van' | 'reefer' | 'flatbed'
   weight_lbs: number
   pickup_date: string // YYYY-MM-DD
+  accessorials:         string[]
 }
 
 export async function createQuote(payload: CreateQuotePayload): Promise<Quote> {

@@ -19,6 +19,7 @@ export interface Quote {
   fuel_surcharge: string
   total_rate: string
   status: QuoteStatus
+  accessorials: string[]
   notes: string | null
   created_at: string
   updated_at: string

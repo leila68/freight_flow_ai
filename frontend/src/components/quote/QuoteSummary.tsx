@@ -12,13 +12,13 @@ import { equipmentTypes, accessorialOptions } from '@/src/lib/constants'
 
 interface QuoteSummaryProps {
   formData: QuoteFormData
-  onReset:  () => void
+  onReset: () => void
 }
 
 export function QuoteSummary({ formData, onReset }: QuoteSummaryProps) {
-  const [quote, setQuote]   = useState<Quote | null>(null)
+  const [quote, setQuote] = useState<Quote | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError]   = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const equipmentLabel =
     equipmentTypes.find((e) => e.value === formData.equipment_type)?.label ?? 'Dry Van'
@@ -29,13 +29,14 @@ export function QuoteSummary({ formData, onReset }: QuoteSummaryProps) {
     if (!formData.pickup_date) return
 
     createQuote({
-      origin_city:          formData.origin_city,
-      origin_province:      formData.origin_province,
-      destination_city:     formData.destination_city,
+      origin_city: formData.origin_city,
+      origin_province: formData.origin_province,
+      destination_city: formData.destination_city,
       destination_province: formData.destination_province,
-      equipment_type:       formData.equipment_type,
-      weight_lbs:           formData.weight_lbs,
-      pickup_date:          format(formData.pickup_date, 'yyyy-MM-dd'),
+      equipment_type: formData.equipment_type,
+      weight_lbs: formData.weight_lbs,
+      pickup_date: format(formData.pickup_date, 'yyyy-MM-dd'),
+      accessorials: formData.accessorials,
     })
       .then(setQuote)
       .catch((err) => setError(err.message))
@@ -79,7 +80,7 @@ export function QuoteSummary({ formData, onReset }: QuoteSummaryProps) {
 
   // ── Success state ──────────────────────────────────────────────────────────
   const shortId = quote.id.slice(-8).toUpperCase()
-  const margin  = parseFloat(quote.total_rate) * 0.18
+  const margin = parseFloat(quote.total_rate) * 0.18
 
   return (
     <Card className="bg-card">
@@ -165,11 +166,11 @@ export function QuoteSummary({ formData, onReset }: QuoteSummaryProps) {
         </div>
 
         {/* Accessorials */}
-        {formData.accessorials.length > 0 && (
+        {quote.accessorials && quote.accessorials.length > 0 && (
           <div className="mt-6">
             <p className="mb-2 text-sm font-medium text-muted-foreground">Included Services</p>
             <div className="flex flex-wrap gap-2">
-              {formData.accessorials.map((acc) => (
+              {quote.accessorials.map((acc) => (
                 <Badge key={acc} variant="secondary" className="bg-secondary">
                   {acc}
                 </Badge>
