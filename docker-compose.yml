@@ -1,5 +1,6 @@
 services:
   # ─── PostgreSQL with pgvector extension ───────────────────────────────────
+  # ----- future work here also add ollama and pgvertor ----------------------
   db:
     image: pgvector/pgvector:pg16
     container_name: freightflow_db
