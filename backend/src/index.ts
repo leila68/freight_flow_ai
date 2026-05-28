@@ -24,7 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-app.use(router);
+app.use('/api', router);
 
 // 404 catch-all — must come after all routes
 app.use((_req, res) => {
@@ -45,7 +45,7 @@ async function start(): Promise<void> {
   app.listen(env.PORT, () => {
     console.log(`\n🚚  FreightFlow AI backend`);
     console.log(`🌐  http://localhost:${env.PORT}`);
-    console.log(`📋  Health: http://localhost:${env.PORT}/health`);
+    console.log(`📋  Health: http://localhost:${env.PORT}/api/health`);
     console.log(`📦  Quotes: http://localhost:${env.PORT}/api/quotes`);
     console.log(`🗺️   Lanes:  http://localhost:${env.PORT}/api/lanes`);
     console.log(`\n📦  Environment: ${env.NODE_ENV}\n`);
