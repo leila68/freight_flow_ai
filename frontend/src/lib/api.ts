@@ -51,6 +51,18 @@ export interface FetchQuotesParams {
   offset?: number
 }
 
+export interface AccessorialOption {
+  id:    number
+  code:  string
+  label: string
+  price: string
+}
+
+export async function fetchAccessorials(): Promise<AccessorialOption[]> {
+  const res = await apiFetch<{ success: boolean; data: AccessorialOption[] }>('/api/accessorials')
+  return res.data
+}
+
 export async function fetchQuotes(params?: FetchQuotesParams): Promise<{
   quotes: Quote[]
   total: number
