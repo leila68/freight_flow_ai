@@ -83,3 +83,13 @@ export interface QuoteFilters {
   limit?:          number;
   offset?:         number;
 }
+
+export interface Accessorial {
+  id:          number
+  code:        string
+  label:       string
+  price:       string  // pg returns NUMERIC as string
+  description: string | null
+  is_active:   boolean
+  created_at:  Date
+}
