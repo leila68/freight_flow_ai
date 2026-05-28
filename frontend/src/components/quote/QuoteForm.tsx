@@ -13,6 +13,7 @@ import { equipmentTypes, accessorialOptions } from '@/src/lib/constants'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { MapPin, Truck, Package, Check, ChevronRight, ChevronLeft } from 'lucide-react'
+import { fetchAccessorials, type AccessorialOption } from '@/src/lib/api'
 
 
 interface QuoteFormProps {
@@ -46,6 +47,11 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
   const [loadingOrigin, setLoadingOrigin] = useState(false)
   const [loadingDest, setLoadingDest] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
+  const [accessorials, setAccessorials] = useState<AccessorialOption[]>([])
+
+  useEffect(() => {
+    fetchAccessorials().then(setAccessorials).catch(console.error)
+  }, [])
 
   // Refs to close dropdowns on outside click
   const originRef = useRef<HTMLDivElement>(null)
@@ -339,22 +345,27 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
           <div className="space-y-4">
             <Label>Select Accessorials (optional)</Label>
             <div className="grid grid-cols-2 gap-3">
-              {accessorialOptions.map((accessorial) => (
+              {accessorials.map((acc) => (
                 <div
-                  key={accessorial}
+                  key={acc.code}
                   className={cn(
-                    'flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors',
-                    formData.accessorials.includes(accessorial)
+                    'flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors',
+                    formData.accessorials.includes(acc.label)
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50'
                   )}
-                  onClick={() => handleAccessorialToggle(accessorial)}
+                  onClick={() => handleAccessorialToggle(acc.label)}
                 >
-                  <Checkbox
-                    checked={formData.accessorials.includes(accessorial)}
-                    onCheckedChange={() => handleAccessorialToggle(accessorial)}
-                  />
-                  <span className="text-sm">{accessorial}</span>
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={formData.accessorials.includes(acc.label)}
+                      onCheckedChange={() => handleAccessorialToggle(acc.label)}
+                    />
+                    <span className="text-sm">{acc.label}</span>
+                  </div>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    +${parseFloat(acc.price).toFixed(2)}
+                  </span>
                 </div>
               ))}
             </div>
