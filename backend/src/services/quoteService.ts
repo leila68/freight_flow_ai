@@ -94,7 +94,7 @@ export async function createQuote(input: CreateQuoteInput): Promise<Quote> {
         fuel_surcharge, total_rate, accessorials
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15
+        $11, $12, $13, $14, $15, $16
       )
       RETURNING *`,
     [
