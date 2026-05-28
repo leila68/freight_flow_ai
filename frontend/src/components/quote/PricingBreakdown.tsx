@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { equipmentTypes } from '@/src/lib/constants'
-import { fetchLanes } from '@/src/lib/api'
+import { fetchLanes, fetchAccessorials, fetchEquipmentMultipliers } from '@/src/lib/api'
 import type { Lane } from '@/src/types/quote'
 import type { QuoteFormData } from '@/src/pages/QuoteEngine'
 
@@ -14,26 +14,23 @@ interface PricingBreakdownProps {
   step:     number
 }
 
-const ACCESSORIAL_RATE = 75
-
-const EQUIPMENT_MULTIPLIERS: Record<string, number> = {
-  dry_van: 1.00,
-  reefer:  1.30,
-  flatbed: 1.15,
-}
-
 function calculateBreakdown(
-  baseRate:      number,
-  equipmentType: string,
-  weightLbs:     number,
-  accessorials:  string[],
+  baseRate:         number,
+  equipmentType:    string,
+  weightLbs:        number,
+  accessorials:     string[],
+  multiplierMap:    Record<string, number>,
+  accessorialMap:   Record<string, number>,
 ) {
-  const multiplier         = EQUIPMENT_MULTIPLIERS[equipmentType] ?? 1.0
+  const multiplier         = multiplierMap[equipmentType] ?? 1.0
   const equipmentSurcharge = baseRate * (multiplier - 1)
   const excessLbs          = Math.max(0, weightLbs - 10_000)
   const weightSurcharge    = (excessLbs / 100) * 0.10
-  const accessorialTotal   = accessorials.length * ACCESSORIAL_RATE
-  const total              = baseRate + equipmentSurcharge + weightSurcharge + accessorialTotal
+  const accessorialTotal   = accessorials.reduce(
+    (sum, label) => sum + (accessorialMap[label] ?? 0),
+    0,
+  )
+  const total = baseRate + equipmentSurcharge + weightSurcharge + accessorialTotal
   return {
     base_rate:           round2(baseRate),
     equipment_surcharge: round2(equipmentSurcharge),
@@ -48,8 +45,31 @@ function round2(n: number) {
 }
 
 export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
-  const [matchedLane, setMatchedLane] = useState<Lane | null>(null)
+  const [matchedLane, setMatchedLane]       = useState<Lane | null>(null)
+  // multiplierMap: { dry_van: 1.0, reefer: 1.3, flatbed: 1.15 } — from DB
+  const [multiplierMap, setMultiplierMap]   = useState<Record<string, number>>({})
+  // accessorialMap: { 'Liftgate Pickup': 75, ... } — from DB
+  const [accessorialMap, setAccessorialMap] = useState<Record<string, number>>({})
 
+  // ── Fetch equipment multipliers from DB ───────────────────────────────────
+  useEffect(() => {
+    fetchEquipmentMultipliers().then((list) => {
+      const map: Record<string, number> = {}
+      list.forEach((m) => { map[m.equipment_type] = parseFloat(m.multiplier) })
+      setMultiplierMap(map)
+    }).catch(console.error)
+  }, [])
+
+  // ── Fetch accessorial prices from DB ──────────────────────────────────────
+  useEffect(() => {
+    fetchAccessorials().then((list) => {
+      const map: Record<string, number> = {}
+      list.forEach((a) => { map[a.label] = parseFloat(a.price) })
+      setAccessorialMap(map)
+    }).catch(console.error)
+  }, [])
+
+  // ── Match lane from DB ────────────────────────────────────────────────────
   useEffect(() => {
     if (!formData.origin_city || !formData.destination_city) {
       setMatchedLane(null)
@@ -64,7 +84,7 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
           l.destination_province.toLowerCase() === formData.destination_province.toLowerCase(),
       )
       setMatchedLane(match ?? null)
-    })
+    }).catch(console.error)
   }, [
     formData.origin_city,
     formData.origin_province,
@@ -80,8 +100,10 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
       formData.equipment_type,
       formData.weight_lbs,
       step >= 3 ? formData.accessorials : [],
+      multiplierMap,
+      accessorialMap,
     ),
-    [baseRate, formData.equipment_type, formData.weight_lbs, formData.accessorials, step],
+    [baseRate, formData.equipment_type, formData.weight_lbs, formData.accessorials, step, multiplierMap, accessorialMap],
   )
 
   const hasRoute       = formData.origin_city.length > 0 && formData.destination_city.length > 0
@@ -103,6 +125,7 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
       <CardContent className="p-6">
         <div className="mb-4 space-y-3">
 
+          {/* Route */}
           <div className="flex items-center gap-3">
             <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0">
@@ -115,6 +138,7 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
             </div>
           </div>
 
+          {/* Distance + transit */}
           {hasLane && matchedLane && (
             <div className="ml-7 flex gap-4 text-xs text-muted-foreground">
               <span>{matchedLane.distance_km} km</span>
@@ -123,6 +147,7 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
             </div>
           )}
 
+          {/* Pickup date */}
           {formData.pickup_date && (
             <div className="flex items-center gap-3">
               <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -135,6 +160,7 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
             </div>
           )}
 
+          {/* Equipment + weight — step 2+ */}
           {step >= 2 && (
             <>
               <div className="flex items-center gap-3">
@@ -156,6 +182,7 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
             </>
           )}
 
+          {/* Accessorials summary — step 3 */}
           {step >= 3 && (
             <div className="flex items-start gap-3">
               <CheckSquare className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
@@ -186,6 +213,7 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
 
         <Separator className="my-4" />
 
+        {/* Pricing section */}
         {!hasRoute ? (
           <p className="text-sm text-muted-foreground italic text-center py-4">
             Select a route to see pricing
@@ -197,11 +225,14 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
         ) : (
           <>
             <div className="space-y-2">
+
+              {/* Base rate */}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Base Rate</span>
                 <span>${fmt(breakdown.base_rate)}</span>
               </div>
 
+              {/* Equipment surcharge — step 2+ */}
               {step >= 2 && breakdown.equipment_surcharge > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Equipment ({equipmentLabel})</span>
@@ -209,6 +240,7 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
                 </div>
               )}
 
+              {/* Weight surcharge — step 2+ */}
               {step >= 2 && breakdown.weight_surcharge > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Weight Surcharge (&gt;10k lbs)</span>
@@ -216,18 +248,19 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
                 </div>
               )}
 
+              {/* Accessorials with real prices — step 3 */}
               {step >= 3 && formData.accessorials.length > 0 && (
                 <>
                   <div className="pt-1">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Tag className="h-3 w-3" />
-                      Accessorials (${ACCESSORIAL_RATE} each)
+                      Accessorials
                     </div>
                   </div>
                   {formData.accessorials.map((acc) => (
                     <div key={acc} className="flex justify-between text-sm pl-4">
                       <span className="text-muted-foreground">{acc}</span>
-                      <span>+${fmt(ACCESSORIAL_RATE)}</span>
+                      <span>+${fmt(accessorialMap[acc] ?? 0)}</span>
                     </div>
                   ))}
                   {formData.accessorials.length > 1 && (
@@ -244,6 +277,7 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
 
             <Separator className="my-4" />
 
+            {/* Total */}
             <div className="flex items-center justify-between">
               <span className="text-base font-medium text-foreground">
                 {step >= 2 ? 'Est. Total' : 'Base Rate'}
@@ -262,6 +296,7 @@ export function PricingBreakdown({ formData, step }: PricingBreakdownProps) {
               ~${fmt(displayTotal * 0.18)} est. margin (18%)
             </div>
 
+            {/* Market position */}
             <div className="mt-6 rounded-lg border border-border bg-secondary/30 p-4">
               <p className="text-xs font-medium text-muted-foreground">Market Position</p>
               <div className="mt-2 flex items-center gap-2">
