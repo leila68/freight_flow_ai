@@ -15,39 +15,40 @@ import {
 
 const EQUIPMENT_MULTIPLIERS: Record<EquipmentType, number> = {
   dry_van: 1.00,
-  reefer:  1.30,
+  reefer: 1.30,
   flatbed: 1.15,
 };
 
 const WEIGHT_SURCHARGE_THRESHOLD_LBS = 10_000;
-const WEIGHT_SURCHARGE_PER_100_LBS   = 0.10;
+const WEIGHT_SURCHARGE_PER_100_LBS = 0.10;
 
 // Calculates a full rate breakdown from raw inputs.
 // Returns every component separately so the UI can show a breakdown.
 export function calculateRate(
-  baseLaneRate:  number,
+  baseLaneRate: number,
   equipmentType: EquipmentType,
-  weightLbs:     number,
+  weightLbs: number,
+  accessorialTotal: number = 0,
 ): RateBreakdown {
-  const multiplier       = EQUIPMENT_MULTIPLIERS[equipmentType];
+  const multiplier = EQUIPMENT_MULTIPLIERS[equipmentType];
   const equipmentSurcharge = baseLaneRate * (multiplier - 1);
 
   // $0.10 per 100 lbs over 10,000 lbs
-  const excessLbs       = Math.max(0, weightLbs - WEIGHT_SURCHARGE_THRESHOLD_LBS);
+  const excessLbs = Math.max(0, weightLbs - WEIGHT_SURCHARGE_THRESHOLD_LBS);
   const weightSurcharge = (excessLbs / 100) * WEIGHT_SURCHARGE_PER_100_LBS;
 
   // Placeholder for Phase 2 fuel surcharge logic
   const fuelSurcharge = 0;
 
   const totalRate =
-    baseLaneRate + equipmentSurcharge + weightSurcharge + fuelSurcharge;
+    baseLaneRate + equipmentSurcharge + weightSurcharge + fuelSurcharge + accessorialTotal;
 
   return {
-    base_rate:           round2(baseLaneRate),
+    base_rate: round2(baseLaneRate),
     equipment_surcharge: round2(equipmentSurcharge),
-    weight_surcharge:    round2(weightSurcharge),
-    fuel_surcharge:      round2(fuelSurcharge),
-    total_rate:          round2(totalRate),
+    weight_surcharge: round2(weightSurcharge),
+    fuel_surcharge: round2(fuelSurcharge),
+    total_rate: round2(totalRate),
   };
 }
 
@@ -79,8 +80,23 @@ export async function createQuote(input: CreateQuoteInput): Promise<Quote> {
   }
 
   // Step 2: Rate calculation
-  const baseRate   = parseFloat(lane.base_rate);
-  const breakdown  = calculateRate(baseRate, input.equipment_type, input.weight_lbs);
+  const baseRate = parseFloat(lane.base_rate)
+
+  // Fetch prices for selected accessorials from DB
+  let accessorialTotal = 0
+  if (input.accessorials && input.accessorials.length > 0) {
+    const placeholders = input.accessorials.map((_, i) => `$${i + 1}`).join(', ')
+    const accResult = await db.query<{ price: string }>(
+      `SELECT price FROM accessorials WHERE label IN (${placeholders}) AND is_active = true`,
+      input.accessorials,
+    )
+    accessorialTotal = accResult.rows.reduce(
+      (sum, row) => sum + parseFloat(row.price),
+      0,
+    )
+  }
+
+  const breakdown = calculateRate(baseRate, input.equipment_type, input.weight_lbs, accessorialTotal)
 
   // Step 3: Persist
   const result = await db.query<Quote>(
@@ -91,21 +107,22 @@ export async function createQuote(input: CreateQuoteInput): Promise<Quote> {
         distance_km, transit_days,
         equipment_type, weight_lbs, pickup_date,
         base_rate, equipment_surcharge, weight_surcharge,
-        fuel_surcharge, total_rate
+        fuel_surcharge, total_rate, accessorials
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15
+        $11, $12, $13, $14, $15, $16
       )
       RETURNING *`,
     [
       lane.id,
-      input.origin_city,        input.origin_province,
-      input.destination_city,   input.destination_province,
-      lane.distance_km,         lane.transit_days,
-      input.equipment_type,     input.weight_lbs, input.pickup_date,
-      breakdown.base_rate,      breakdown.equipment_surcharge,
+      input.origin_city, input.origin_province,
+      input.destination_city, input.destination_province,
+      lane.distance_km, lane.transit_days,
+      input.equipment_type, input.weight_lbs, input.pickup_date,
+      breakdown.base_rate, breakdown.equipment_surcharge,
       breakdown.weight_surcharge, breakdown.fuel_surcharge,
       breakdown.total_rate,
+      JSON.stringify(input.accessorials ?? []),
     ],
   );
 
@@ -115,11 +132,11 @@ export async function createQuote(input: CreateQuoteInput): Promise<Quote> {
 // Returns a paginated, filtered list of quotes.
 export async function getQuotes(filters: QuoteFilters): Promise<{
   quotes: Quote[];
-  total:  number;
+  total: number;
 }> {
   const conditions: string[] = [];
-  const params: unknown[]    = [];
-  let   p = 1;
+  const params: unknown[] = [];
+  let p = 1;
 
   if (filters.equipment_type) {
     conditions.push(`equipment_type = $${p++}`);
@@ -138,8 +155,8 @@ export async function getQuotes(filters: QuoteFilters): Promise<{
     params.push(filters.date_to);
   }
 
-  const where  = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const limit  = filters.limit  ?? 20;
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const limit = filters.limit ?? 20;
   const offset = filters.offset ?? 0;
 
   const [dataResult, countResult] = await Promise.all([
@@ -155,7 +172,7 @@ export async function getQuotes(filters: QuoteFilters): Promise<{
 
   return {
     quotes: dataResult.rows,
-    total:  parseInt(countResult.rows[0].count, 10),
+    total: parseInt(countResult.rows[0].count, 10),
   };
 }
 

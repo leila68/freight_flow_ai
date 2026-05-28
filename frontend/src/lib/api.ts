@@ -51,6 +51,31 @@ export interface FetchQuotesParams {
   offset?: number
 }
 
+export interface AccessorialOption {
+  id:    number
+  code:  string
+  label: string
+  price: string
+}
+
+export async function fetchAccessorials(): Promise<AccessorialOption[]> {
+  const res = await apiFetch<{ success: boolean; data: AccessorialOption[] }>('/api/accessorials')
+  return res.data
+}
+
+export interface EquipmentMultiplier {
+  equipment_type: string
+  multiplier:     string
+  label:          string
+}
+
+export async function fetchEquipmentMultipliers(): Promise<EquipmentMultiplier[]> {
+  const res = await apiFetch<{ success: boolean; data: EquipmentMultiplier[] }>(
+    '/api/equipment-multipliers'
+  )
+  return res.data
+}
+
 export async function fetchQuotes(params?: FetchQuotesParams): Promise<{
   quotes: Quote[]
   total: number
@@ -83,6 +108,7 @@ export interface CreateQuotePayload {
   equipment_type: 'dry_van' | 'reefer' | 'flatbed'
   weight_lbs: number
   pickup_date: string // YYYY-MM-DD
+  accessorials:         string[]
 }
 
 export async function createQuote(payload: CreateQuotePayload): Promise<Quote> {

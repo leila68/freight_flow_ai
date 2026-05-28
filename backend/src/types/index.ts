@@ -41,6 +41,7 @@ export interface Quote {
   notes:                 string | null;
   created_at:            Date;
   updated_at:            Date;
+  accessorials:          string[];
 }
 
 export interface EquipmentMultiplier {
@@ -61,6 +62,7 @@ export interface CreateQuoteInput {
   equipment_type:      EquipmentType;
   weight_lbs:          number;
   pickup_date:         string; // ISO date string YYYY-MM-DD
+  accessorials:        string[];
 }
 
 // Human-readable rate breakdown returned with each quote
@@ -80,4 +82,14 @@ export interface QuoteFilters {
   status?:         QuoteStatus;
   limit?:          number;
   offset?:         number;
+}
+
+export interface Accessorial {
+  id:          number
+  code:        string
+  label:       string
+  price:       string  // pg returns NUMERIC as string
+  description: string | null
+  is_active:   boolean
+  created_at:  Date
 }

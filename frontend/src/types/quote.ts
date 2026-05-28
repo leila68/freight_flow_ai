@@ -9,7 +9,7 @@ export interface Quote {
   destination_city: string
   destination_province: string
   equipment_type: EquipmentType
-  weight_lbs: number
+  weight_lbs: string
   pickup_date: string
   distance_km: number
   transit_days: number
@@ -19,6 +19,7 @@ export interface Quote {
   fuel_surcharge: string
   total_rate: string
   status: QuoteStatus
+  accessorials: string[]
   notes: string | null
   created_at: string
   updated_at: string
