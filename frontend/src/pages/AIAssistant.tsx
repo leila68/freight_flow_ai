@@ -1,24 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
-import {
-  Send,
-  Bot,
-  User,
-  Sparkles,
-  TrendingUp,
-  MapPin,
-  DollarSign,
-  FileText,
-  ArrowRight,
-  Clock,
-  RefreshCw,
-} from 'lucide-react'
+import { Send, Bot, User, Sparkles, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
 interface Message {
@@ -34,10 +21,10 @@ interface Message {
 }
 
 const suggestedPrompts = [
-  'What are the best rates for LA to Phoenix this week?',
+  'What are the best rates for Toronto to Montreal this week?',
   'Analyze market trends for reefer equipment',
   'Show me underperforming lanes',
-  'Suggest competitive pricing for Chicago to Detroit',
+  'Suggest competitive pricing for Calgary to Ottawa',
 ]
 
 const chatHistory = [
@@ -69,104 +56,6 @@ export function AIAssistant() {
     scrollToBottom()
   }, [messages])
 
-  const simulateResponse = (userMessage: string): Message => {
-    // Simulate different responses based on keywords
-    if (userMessage.toLowerCase().includes('la') && userMessage.toLowerCase().includes('phoenix')) {
-      return {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content:
-          "I've analyzed the LA to Phoenix lane. Here's what I found:",
-        timestamp: new Date(),
-        data: {
-          type: 'lane_analysis',
-          content: (
-            <div className="mt-3 rounded-lg border border-border bg-secondary/30 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <MapPin className="h-4 w-4 text-primary" />
-                Los Angeles, CA → Phoenix, AZ
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Avg Rate</p>
-                  <p className="text-lg font-semibold text-primary">$2,380</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Range</p>
-                  <p className="text-sm font-medium text-foreground">$1,950 - $2,850</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Trend</p>
-                  <div className="flex items-center gap-1 text-emerald-500">
-                    <TrendingUp className="h-3 w-3" />
-                    <span className="text-sm font-medium">+5.2%</span>
-                  </div>
-                </div>
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Recommendation: This lane is trending up. Consider rates between $2,300-$2,500 for competitive quotes.
-              </p>
-            </div>
-          ),
-        },
-        suggestions: ['Create a quote for this lane', 'Show historical data', 'Compare with similar lanes'],
-      }
-    }
-
-    if (userMessage.toLowerCase().includes('market') || userMessage.toLowerCase().includes('trend')) {
-      return {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content:
-          "Here's the current market analysis:",
-        timestamp: new Date(),
-        data: {
-          type: 'rate_comparison',
-          content: (
-            <div className="mt-3 space-y-3">
-              <div className="rounded-lg border border-border bg-secondary/30 p-4">
-                <p className="text-sm font-medium text-foreground">Market Overview</p>
-                <div className="mt-2 grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
-                      <TrendingUp className="h-4 w-4 text-emerald-500" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Dry Van</p>
-                      <p className="text-sm font-semibold text-foreground">$2.85/mi avg</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                      <TrendingUp className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Reefer</p>
-                      <p className="text-sm font-semibold text-foreground">$3.45/mi avg</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                The market is showing moderate growth. Reefer rates are up 8% month-over-month due to produce season.
-              </p>
-            </div>
-          ),
-        },
-        suggestions: ['Show regional breakdown', 'Forecast next week', 'Alert me on changes'],
-      }
-    }
-
-    // Default response
-    return {
-      id: Date.now().toString(),
-      role: 'assistant',
-      content:
-        "I can help you with rate analysis, lane intelligence, and pricing recommendations. Try asking about specific lanes, market trends, or competitive pricing strategies. Would you like me to analyze a specific route or show you current market conditions?",
-      timestamp: new Date(),
-      suggestions: suggestedPrompts.slice(0, 3),
-    }
-  }
 
   const handleSend = async () => {
     if (!inputValue.trim()) return
@@ -182,12 +71,42 @@ export function AIAssistant() {
     setInputValue('')
     setIsTyping(true)
 
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    try {
+      const res = await fetch('http://localhost:3001/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: inputValue,
+          sessionId: 'demo-session', // optional for now
+        }),
+      })
 
-    const assistantMessage = simulateResponse(inputValue)
-    setMessages((prev) => [...prev, assistantMessage])
-    setIsTyping(false)
+      const data = await res.json()
+
+      const assistantMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: data.message,
+        timestamp: new Date(),
+        suggestions: data.suggestions,
+        data: data.data,
+      }
+
+      setMessages((prev) => [...prev, assistantMessage])
+    } catch (err) {
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: 'Error connecting to server.',
+        timestamp: new Date(),
+      }
+
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setIsTyping(false)
+    }
   }
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -332,7 +251,7 @@ export function AIAssistant() {
             </Button>
           </div>
           <p className="mt-2 text-center text-[10px] text-muted-foreground">
-            AI responses are simulated for demo purposes. Connect to backend for live data.
+            AI responses are powered by FreightFlow AI backend.
           </p>
         </div>
       </Card>
