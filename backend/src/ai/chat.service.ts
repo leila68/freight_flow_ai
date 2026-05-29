@@ -1,53 +1,43 @@
 import { routeMessage } from './router.service'
 import { aiService } from './ai.service'
+import { sqlService } from './sql.service'
+import { sqlGuard } from './sql.guard'
 
 export const chatService = {
-  async handleMessage({
-    message,
-  }: {
-    message: string
-    sessionId?: string
-  }) {
+  async handleMessage({ message }: { message: string; sessionId?: string }) {
 
     const route = routeMessage(message)
 
-    // ─────────────────────────────
-    // CHAT MODE (REAL AI)
-    // ─────────────────────────────
+    // ---------------- CHAT ----------------
     if (route === 'chat') {
-      try {
-        const aiResponse = await aiService.chat(message)
+      const response = await aiService.chat(message)
 
-        return {
-          type: 'chat',
-          message: aiResponse,
-        }
-      } catch (error: any) {
-        console.error('OpenAI Error:', error)
-
-        return {
-          type: 'chat',
-          message:
-            'AI service is temporarily unavailable. Please try again later.',
-        }
-      }
-    }
-    // ─────────────────────────────
-    // SQL MODE (NEXT STEP)
-    // ─────────────────────────────
-    if (route === 'sql') {
       return {
-        type: 'sql',
-        message: 'SQL engine next step (we will build SQL generator next)',
+        type: 'chat',
+        message: response,
       }
     }
 
-    // ─────────────────────────────
-    // RAG MODE (NEXT STEP)
-    // ─────────────────────────────
+    // ---------------- SQL ----------------
+    if (route === 'sql') {
+  const sql = await aiService.generateSQL(message)
+  sqlGuard.validate(sql)
+  const data = await sqlService.runQuery(sql)
+
+  // Send data back to LLM to format as human-readable response
+  const humanResponse = await aiService.formatDataAsMessage(message, data)
+
+  return {
+    type: 'sql',
+    message: humanResponse,
+    data,
+  }
+}
+
+    // ---------------- RAG (future) ----------------
     return {
       type: 'rag',
-      message: 'RAG engine next step (pgvector integration next)',
+      message: 'RAG not implemented yet',
     }
   },
 }

@@ -1,24 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
-import {
-  Send,
-  Bot,
-  User,
-  Sparkles,
-  TrendingUp,
-  MapPin,
-  DollarSign,
-  FileText,
-  ArrowRight,
-  Clock,
-  RefreshCw,
-} from 'lucide-react'
+import { Send, Bot, User, Sparkles, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
 interface Message {
@@ -34,10 +21,10 @@ interface Message {
 }
 
 const suggestedPrompts = [
-  'What are the best rates for LA to Phoenix this week?',
+  'What are the best rates for Toronto to Montreal this week?',
   'Analyze market trends for reefer equipment',
   'Show me underperforming lanes',
-  'Suggest competitive pricing for Chicago to Detroit',
+  'Suggest competitive pricing for Calgary to Ottawa',
 ]
 
 const chatHistory = [
