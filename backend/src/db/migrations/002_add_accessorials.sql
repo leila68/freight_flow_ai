@@ -1,2 +1,2 @@
 ALTER TABLE quotes
-ADD COLUMN accessorials JSONB NOT NULL DEFAULT '[]';
+ADD COLUMN IF NOT EXISTS accessorials JSONB;
