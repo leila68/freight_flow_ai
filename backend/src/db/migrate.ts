@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { db, connectDB } from './client';
+import { pool, connectDB } from './client'
 
 // Simple migration runner — reads every .sql file from the
 // migrations/ directory in alphabetical order and executes them.
@@ -20,12 +20,12 @@ async function runMigrations(): Promise<void> {
     const filePath = path.join(migrationsDir, file);
     const sql = fs.readFileSync(filePath, 'utf-8');
     console.log(`  ▶ ${file}`);
-    await db.query(sql);
+    await pool.query(sql);
     console.log(`  ✅ ${file} complete`);
   }
 
   console.log('\n✅  All migrations complete');
-  await db.end();
+  await pool.end();
 }
 
 runMigrations().catch((err) => {
