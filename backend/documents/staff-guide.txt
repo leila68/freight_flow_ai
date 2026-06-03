@@ -1,0 +1,13 @@
+FreightFlow AI Staff Guide
+
+When creating quotes:
+
+1. Verify lane information.
+2. Confirm equipment type.
+3. Verify shipment weight.
+4. Apply required accessorial charges.
+5. Review final rate before sending.
+
+Always communicate clearly with customers and carriers.
+
+Document any special instructions inside quote notes.

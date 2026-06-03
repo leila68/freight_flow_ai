@@ -1,0 +1,19 @@
+FreightFlow AI Reefer Pricing Guide
+
+Reefer shipments use a multiplier of 1.30.
+
+Refrigerated equipment is more expensive because of:
+
+- Fuel consumption
+- Refrigeration maintenance
+- Temperature monitoring
+- Higher insurance costs
+
+Produce season can significantly increase reefer rates, especially in California and Florida.
+
+Typical reefer freight includes:
+
+- Fresh produce
+- Frozen foods
+- Dairy products
+- Pharmaceuticals
