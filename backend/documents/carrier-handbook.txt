@@ -1,0 +1,11 @@
+FreightFlow AI Carrier Handbook
+
+Carriers must:
+
+- Maintain valid insurance.
+- Provide current operating authority.
+- Arrive on time for pickups.
+- Communicate delays immediately.
+- Submit proof of delivery after delivery completion.
+
+Safety compliance is mandatory for all carriers operating through FreightFlow AI.

@@ -1,0 +1,49 @@
+FreightFlow AI Accessorial Charges
+
+Liftgate Pickup
+Code: liftgate_pickup
+Charge: $75
+
+Liftgate Delivery
+Code: liftgate_delivery
+Charge: $75
+
+Residential Pickup
+Code: residential_pickup
+Charge: $85
+
+Residential Delivery
+Code: residential_delivery
+Charge: $85
+
+Inside Pickup
+Code: inside_pickup
+Charge: $95
+
+Inside Delivery
+Code: inside_delivery
+Charge: $95
+
+Limited Access
+Code: limited_access
+Charge: $100
+
+Appointment Required
+Code: appointment
+Charge: $50
+
+Temperature Control
+Code: temp_control
+Charge: $120
+
+Tarping
+Code: tarping
+Charge: $80
+
+Hazmat
+Code: hazmat
+Charge: $150
+
+Team Drivers
+Code: team_drivers
+Charge: $200

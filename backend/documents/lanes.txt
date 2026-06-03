@@ -1,0 +1,53 @@
+FreightFlow AI Lane Database
+
+The following lanes are available in the system.
+
+Toronto, ON → Montreal, QC
+Base Rate: $520
+Distance: 541 km
+Transit Time: 1 day
+
+Vancouver, BC → Calgary, AB
+Base Rate: $680
+Distance: 972 km
+Transit Time: 2 days
+
+Montreal, QC → Ottawa, ON
+Base Rate: $380
+Distance: 199 km
+Transit Time: 1 day
+
+Calgary, AB → Edmonton, AB
+Base Rate: $420
+Distance: 299 km
+Transit Time: 1 day
+
+Toronto, ON → Ottawa, ON
+Base Rate: $450
+Distance: 450 km
+Transit Time: 1 day
+
+Vancouver, BC → Victoria, BC
+Base Rate: $280
+Distance: 115 km
+Transit Time: 1 day
+
+Winnipeg, MB → Regina, SK
+Base Rate: $480
+Distance: 571 km
+Transit Time: 2 days
+
+Halifax, NS → Moncton, NB
+Base Rate: $340
+Distance: 262 km
+Transit Time: 1 day
+
+Quebec City, QC → Montreal, QC
+Base Rate: $320
+Distance: 253 km
+Transit Time: 1 day
+
+Toronto, ON → Windsor, ON
+Base Rate: $480
+Distance: 370 km
+Transit Time: 1 day

@@ -1,0 +1,16 @@
+FreightFlow AI Equipment Types
+
+Dry Van
+Multiplier: 1.00
+Description:
+Standard enclosed trailer used for general freight.
+
+Reefer
+Multiplier: 1.30
+Description:
+Temperature-controlled trailer used for food, produce, pharmaceuticals, and other refrigerated shipments.
+
+Flatbed
+Multiplier: 1.15
+Description:
+Open trailer used for oversized freight, machinery, steel, lumber, and construction materials.
