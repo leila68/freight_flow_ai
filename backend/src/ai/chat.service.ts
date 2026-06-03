@@ -1,43 +1,61 @@
-import { routeMessage } from './router.service'
-import { aiService } from './ai.service'
+import { ragService } from './rag.service'
 import { sqlService } from './sql.service'
-import { sqlGuard } from './sql.guard'
+import { aiService } from './ai.service'
 
 export const chatService = {
-  async handleMessage({ message }: { message: string; sessionId?: string }) {
+  async handleMessage(input: any) {
+    const message =
+      typeof input === 'string'
+        ? input
+        : input?.message || input?.content || ''
 
-    const route = routeMessage(message)
+    if (!message) {
+      throw new Error('Empty message received')
+    }
 
-    // ---------------- CHAT ----------------
-    if (route === 'chat') {
-      const response = await aiService.chat(message)
+    const lower = message.toLowerCase()
+
+    // ─────────────────────────────
+    // STEP 1: SQL ROUTING (STRICT)
+    // ─────────────────────────────
+
+    const isSQL =
+      /\b(lane|quote|quotes|equipment|accessorial|rate|pricing)\b/.test(lower)
+
+    // ─────────────────────────────
+    // STEP 2A: SQL PATH
+    // ─────────────────────────────
+    if (isSQL) {
+      const sql = await aiService.generateSQL(message)
+
+      const cleanedSql = sql
+        .replace(/```sql|```/g, '')
+        .trim()
+
+      const result = await sqlService.runQuery(cleanedSql)
 
       return {
-        type: 'chat',
-        message: response,
+        type: 'sql',
+        message: result,
       }
     }
 
-    // ---------------- SQL ----------------
-    if (route === 'sql') {
-  const sql = await aiService.generateSQL(message)
-  sqlGuard.validate(sql)
-  const data = await sqlService.runQuery(sql)
+    // ─────────────────────────────
+    // STEP 2B: RAG PATH
+    // ─────────────────────────────
+    const docs = await ragService.search(message)
 
-  // Send data back to LLM to format as human-readable response
-  const humanResponse = await aiService.formatDataAsMessage(message, data)
+    console.log('DOCS FOUND:', docs.length)
 
-  return {
-    type: 'sql',
-    message: humanResponse,
-    data,
-  }
-}
+    const answer = await ragService.generateAnswer(message, docs)
 
-    // ---------------- RAG (future) ----------------
+    console.log('ANSWER GENERATED:')
+    console.log(answer)
+
     return {
-      type: 'rag',
-      message: 'RAG not implemented yet',
-    }
+  message: answer,
+  sources: docs,
+  type: 'rag',
+}
   },
 }
