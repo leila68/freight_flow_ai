@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { pool } from '../db/client'
-import {toVectorString} from '../utils/vector'
+import { toVectorString } from '../utils/vector'
 
 const OLLAMA_URL = 'http://127.0.0.1:11434'
 
@@ -20,30 +20,39 @@ export const ragService = {
   // ─────────────────────────────
   // STEP 2: search DB
   // ─────────────────────────────
- async search(query: string) {
-  const embedding = await this.embed(query)
-  console.log('Embedding length:', embedding.length)
+  async search(query: string) {
+    const embedding = await this.embed(query)
+    console.log('Embedding length:', embedding.length)
 
-  const vector = toVectorString(embedding)
+    const vector = toVectorString(embedding)
 
-  const result = await pool.query(
-    `
+    const result = await pool.query(
+      `
     SELECT id, title, content,
            embedding <-> $1::vector AS distance
     FROM documents
     ORDER BY distance ASC
     LIMIT 5
     `,
-    [vector]
-  )
+      [vector]
+    )
 
-  return result.rows
-},
+    // return result.rows
+    // ── FILTER: only keep results above threshold ──
+    const THRESHOLD = 0.75
+    const filtered = result.rows.filter(row => row.similarity > THRESHOLD)
+
+    return filtered  // returns empty array if nothing is relevant enough
+  },
 
   // ─────────────────────────────
   // STEP 3: generate final answer
   // ─────────────────────────────
   async generateAnswer(query: string, docs: any[]) {
+    // ── if no relevant docs found, return early ──
+    if (docs.length === 0) {
+      return "I don't have enough information to answer this question."
+    }
     const context = docs
       .map((d) => `Title: ${d.title}\nContent: ${d.content}`)
       .join('\n\n---\n\n')
