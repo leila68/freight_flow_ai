@@ -1,4 +1,4 @@
-import { db } from '../db/client';
+import { pool } from '../db/client';
 import { AppError } from '../middleware/errorHandler';
 import { findLane } from './laneService';
 import {
@@ -9,39 +9,63 @@ import {
   EquipmentType,
 } from '../types';
 
-// ─── Rate Engine ──────────────────────────────────────────────────────────────
-// All pricing logic is isolated here so it can be tested and extended
-// independently from HTTP handling.
-
-const EQUIPMENT_MULTIPLIERS: Record<EquipmentType, number> = {
-  dry_van: 1.00,
-  reefer: 1.30,
-  flatbed: 1.15,
-};
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const WEIGHT_SURCHARGE_THRESHOLD_LBS = 10_000;
 const WEIGHT_SURCHARGE_PER_100_LBS = 0.10;
 
-// Calculates a full rate breakdown from raw inputs.
-// Returns every component separately so the UI can show a breakdown.
-export function calculateRate(
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Get company-specific equipment multiplier
+async function getEquipmentMultiplier(
+  companyId: string,
+  equipmentType: EquipmentType,
+): Promise<number> {
+  const result = await pool.query<{ multiplier: string }>(
+    `
+    SELECT cer.multiplier
+    FROM company_equipment_rates cer
+    JOIN equipment_types et ON et.id = cer.equipment_id
+    WHERE cer.company_id = $1
+      AND et.code = $2
+    LIMIT 1
+    `,
+    [companyId, equipmentType],
+  );
+
+  return result.rows[0] ? Number(result.rows[0].multiplier) : 1.0;
+}
+
+// ─── Rate Engine ──────────────────────────────────────────────────────────────
+
+export async function calculateRate(
+  companyId: string,
   baseLaneRate: number,
   equipmentType: EquipmentType,
   weightLbs: number,
   accessorialTotal: number = 0,
-): RateBreakdown {
-  const multiplier = EQUIPMENT_MULTIPLIERS[equipmentType];
+): Promise<RateBreakdown> {
+
+  const multiplier = await getEquipmentMultiplier(companyId, equipmentType);
+
   const equipmentSurcharge = baseLaneRate * (multiplier - 1);
 
-  // $0.10 per 100 lbs over 10,000 lbs
-  const excessLbs = Math.max(0, weightLbs - WEIGHT_SURCHARGE_THRESHOLD_LBS);
-  const weightSurcharge = (excessLbs / 100) * WEIGHT_SURCHARGE_PER_100_LBS;
+  const excessLbs = Math.max(
+    0,
+    weightLbs - WEIGHT_SURCHARGE_THRESHOLD_LBS,
+  );
 
-  // Placeholder for Phase 2 fuel surcharge logic
+  const weightSurcharge =
+    (excessLbs / 100) * WEIGHT_SURCHARGE_PER_100_LBS;
+
   const fuelSurcharge = 0;
 
   const totalRate =
-    baseLaneRate + equipmentSurcharge + weightSurcharge + fuelSurcharge + accessorialTotal;
+    baseLaneRate +
+    equipmentSurcharge +
+    weightSurcharge +
+    fuelSurcharge +
+    accessorialTotal;
 
   return {
     base_rate: round2(baseLaneRate),
@@ -58,11 +82,6 @@ function round2(n: number): number {
 
 // ─── Quote CRUD ───────────────────────────────────────────────────────────────
 
-// Creates a new quote:
-// 1. Looks up the matching seeded lane for base rate + distance
-// 2. Runs the rate engine
-// 3. Persists the full breakdown to the DB
-// 4. Returns the saved quote row
 export async function createQuote(input: CreateQuoteInput): Promise<Quote> {
   // Step 1: Lane lookup
   const lane = await findLane(
@@ -74,116 +93,176 @@ export async function createQuote(input: CreateQuoteInput): Promise<Quote> {
 
   if (!lane) {
     throw new AppError(
-      `No lane found for ${input.origin_city}, ${input.origin_province} → ${input.destination_city}, ${input.destination_province}. Check available lanes via GET /api/lanes.`,
+      `No lane found for ${input.origin_city}, ${input.origin_province} → ${input.destination_city}, ${input.destination_province}`,
       404,
     );
   }
 
-  // Step 2: Rate calculation
-  const baseRate = parseFloat(lane.base_rate)
+  const baseRate = Number(lane.base_rate);
 
-  // Fetch prices for selected accessorials from DB
-  let accessorialTotal = 0
-  if (input.accessorials && input.accessorials.length > 0) {
-    const placeholders = input.accessorials.map((_, i) => `$${i + 1}`).join(', ')
-    const accResult = await db.query<{ price: string }>(
-      `SELECT price FROM accessorials WHERE label IN (${placeholders}) AND is_active = true`,
-      input.accessorials,
-    )
-    accessorialTotal = accResult.rows.reduce(
-      (sum, row) => sum + parseFloat(row.price),
+  // Step 2: Accessorial pricing (company-specific)
+  let accessorialTotal = 0;
+
+  if (input.accessorials?.length) {
+    const placeholders = input.accessorials
+      .map((_, i) => `$${i + 2}`)
+      .join(',');
+
+    const result = await pool.query<{ price: string }>(
+      `
+      SELECT car.price
+      FROM company_accessorial_rates car
+      JOIN accessorials a ON a.id = car.accessorial_id
+      WHERE car.company_id = $1
+        AND a.name IN (${placeholders})
+      `,
+      [input.company_id, ...input.accessorials],
+    );
+
+    accessorialTotal = result.rows.reduce(
+      (sum, row) => sum + Number(row.price),
       0,
-    )
+    );
   }
 
-  const breakdown = calculateRate(baseRate, input.equipment_type, input.weight_lbs, accessorialTotal)
+  // Step 3: Rate calculation
+  const breakdown = await calculateRate(
+    input.company_id,
+    baseRate,
+    input.equipment_type,
+    input.weight_lbs,
+    accessorialTotal,
+  );
 
-  // Step 3: Persist
-  const result = await db.query<Quote>(
-    `INSERT INTO quotes (
-        lane_id,
-        origin_city, origin_province,
-        destination_city, destination_province,
-        distance_km, transit_days,
-        equipment_type, weight_lbs, pickup_date,
-        base_rate, equipment_surcharge, weight_surcharge,
-        fuel_surcharge, total_rate, accessorials
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16
-      )
-      RETURNING *`,
+  // Step 4: Save quote
+  const result = await pool.query<Quote>(
+    `
+    INSERT INTO quotes (
+      company_id,
+      lane_id,
+      origin_city,
+      origin_province,
+      destination_city,
+      destination_province,
+      distance_km,
+      transit_days,
+      equipment_type,
+      weight_lbs,
+      pickup_date,
+      base_rate,
+      equipment_surcharge,
+      weight_surcharge,
+      fuel_surcharge,
+      total_rate,
+      status,
+      notes
+    ) VALUES (
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+      $11,$12,$13,$14,$15,$16,$17,$18
+    )
+    RETURNING *
+    `,
     [
+      input.company_id,
       lane.id,
-      input.origin_city, input.origin_province,
-      input.destination_city, input.destination_province,
-      lane.distance_km, lane.transit_days,
-      input.equipment_type, input.weight_lbs, input.pickup_date,
-      breakdown.base_rate, breakdown.equipment_surcharge,
-      breakdown.weight_surcharge, breakdown.fuel_surcharge,
+      input.origin_city,
+      input.origin_province,
+      input.destination_city,
+      input.destination_province,
+      lane.distance_km,
+      lane.transit_days,
+      input.equipment_type,
+      input.weight_lbs,
+      input.pickup_date,
+      breakdown.base_rate,
+      breakdown.equipment_surcharge,
+      breakdown.weight_surcharge,
+      breakdown.fuel_surcharge,
       breakdown.total_rate,
-      JSON.stringify(input.accessorials ?? []),
+      'draft',
+      null,
     ],
   );
 
   return result.rows[0];
 }
 
-// Returns a paginated, filtered list of quotes.
-export async function getQuotes(filters: QuoteFilters): Promise<{
+// ─── GET QUOTES (COMPANY SCOPED) ─────────────────────────────────────────────
+
+export async function getQuotes(filters: QuoteFilters, companyId: string): Promise<{
   quotes: Quote[];
   total: number;
 }> {
-  const conditions: string[] = [];
-  const params: unknown[] = [];
-  let p = 1;
+  const conditions: string[] = [`company_id = $1`];
+  const params: unknown[] = [companyId];
+  let p = 2;
 
   if (filters.equipment_type) {
     conditions.push(`equipment_type = $${p++}`);
     params.push(filters.equipment_type);
   }
+
   if (filters.status) {
     conditions.push(`status = $${p++}`);
     params.push(filters.status);
   }
+
   if (filters.date_from) {
     conditions.push(`pickup_date >= $${p++}`);
     params.push(filters.date_from);
   }
+
   if (filters.date_to) {
     conditions.push(`pickup_date <= $${p++}`);
     params.push(filters.date_to);
   }
 
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const where = `WHERE ${conditions.join(' AND ')}`;
   const limit = filters.limit ?? 20;
   const offset = filters.offset ?? 0;
 
   const [dataResult, countResult] = await Promise.all([
-    db.query<Quote>(
-      `SELECT * FROM quotes ${where} ORDER BY created_at DESC LIMIT $${p} OFFSET $${p + 1}`,
+    pool.query<Quote>(
+      `
+      SELECT * FROM quotes
+      ${where}
+      ORDER BY created_at DESC
+      LIMIT $${p} OFFSET $${p + 1}
+      `,
       [...params, limit, offset],
     ),
-    db.query<{ count: string }>(
-      `SELECT COUNT(*) FROM quotes ${where}`,
+    pool.query<{ count: string }>(
+      `
+      SELECT COUNT(*) FROM quotes
+      ${where}
+      `,
       params,
     ),
   ]);
 
   return {
     quotes: dataResult.rows,
-    total: parseInt(countResult.rows[0].count, 10),
+    total: Number(countResult.rows[0].count),
   };
 }
 
-// Returns a single quote by ID.
-export async function getQuoteById(id: string): Promise<Quote> {
-  const result = await db.query<Quote>(
-    `SELECT * FROM quotes WHERE id = $1`,
-    [id],
+// ─── GET SINGLE QUOTE ────────────────────────────────────────────────────────
+
+export async function getQuoteById(
+  id: string,
+  companyId: string,
+): Promise<Quote> {
+  const result = await pool.query<Quote>(
+    `
+    SELECT * FROM quotes
+    WHERE id = $1 AND company_id = $2
+    `,
+    [id, companyId],
   );
+
   if (!result.rows[0]) {
-    throw new AppError(`Quote with id '${id}' not found`, 404);
+    throw new AppError(`Quote not found`, 404);
   }
+
   return result.rows[0];
 }

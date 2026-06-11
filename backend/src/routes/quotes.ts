@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { validate } from '../middleware/validate';
 import { createQuoteSchema, quoteFiltersSchema } from '../schemas/quote';
+
 import {
   createQuote,
   getQuotes,
@@ -9,48 +10,24 @@ import {
 
 const router = Router();
 
-// POST /api/quotes
-// Accepts shipment details, runs the rate engine, persists and returns
-// the quote with a full price breakdown.
-//
-// Request body: CreateQuoteBody
-// Response:     { success: true, data: Quote }
+// ─── POST /api/quotes ─────────────────────────────────────
+// Create quote (company-scoped via auth middleware)
+
 router.post(
   '/',
   validate(createQuoteSchema, 'body'),
-  async (req, res, next) => {
+  async (req: any, res, next) => {
     try {
-      const quote = await createQuote(req.body);
-      res.status(201).json({ success: true, data: quote });
-    } catch (err) {
-      next(err);
-    }
-  },
-);
+      const companyId = req.user.company_id; // 🔐 IMPORTANT
 
-// GET /api/quotes
-// Returns paginated list of quotes with optional filters.
-//
-// Query params:
-//   equipment_type  dry_van | reefer | flatbed
-//   status          draft | sent | accepted | expired
-//   date_from       YYYY-MM-DD
-//   date_to         YYYY-MM-DD
-//   limit           default 20, max 100
-//   offset          default 0
-router.get(
-  '/',
-  validate(quoteFiltersSchema, 'query'),
-  async (req, res, next) => {
-    try {
-      const filters = req.query as any;
-      const result  = await getQuotes(filters);
-      res.json({
+      const quote = await createQuote({
+        ...req.body,
+        company_id: companyId,
+      });
+
+      res.status(201).json({
         success: true,
-        data:    result.quotes,
-        total:   result.total,
-        limit:   filters.limit,
-        offset:  filters.offset,
+        data: quote,
       });
     } catch (err) {
       next(err);
@@ -58,16 +35,51 @@ router.get(
   },
 );
 
-// GET /api/quotes/:id
-// Returns a single quote by UUID.
-router.get('/:id', async (req, res, next) => {
+// ─── GET /api/quotes ───────────────────────────────────────
+// Company-scoped list
+
+router.get(
+  '/',
+  validate(quoteFiltersSchema, 'query'),
+  async (req: any, res, next) => {
+    try {
+      const companyId = req.user.company_id;
+
+      const filters = req.query as any;
+
+      const result = await getQuotes(filters, companyId);
+
+      res.json({
+        success: true,
+        data: result.quotes,
+        meta: {
+          total: result.total,
+          limit: filters.limit ?? 20,
+          offset: filters.offset ?? 0,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ─── GET /api/quotes/:id ───────────────────────────────────
+// Company-scoped single quote
+
+router.get('/:id', async (req: any, res, next) => {
   try {
-    const quote = await getQuoteById(req.params.id);
-    res.json({ success: true, data: quote });
+    const companyId = req.user.company_id;
+
+    const quote = await getQuoteById(req.params.id, companyId);
+
+    res.json({
+      success: true,
+      data: quote,
+    });
   } catch (err) {
     next(err);
   }
 });
-
 
 export default router;

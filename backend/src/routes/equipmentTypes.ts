@@ -1,17 +1,16 @@
 import { Router } from 'express';
 import { pool } from '../db/client';
-import { Accessorial } from '../types';
 
 const router = Router();
 
-// GET /api/accessorials
-// Returns all available accessorial types (global catalog)
+// GET /api/equipment-types
+// Returns available equipment types (global list)
 router.get('/', async (_req, res, next) => {
   try {
-    const result = await pool.query<Accessorial>(
+    const result = await pool.query(
       `
       SELECT id, code, name
-      FROM accessorials
+      FROM equipment_types
       ORDER BY name
       `
     );

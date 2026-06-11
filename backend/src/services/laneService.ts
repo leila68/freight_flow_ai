@@ -1,10 +1,10 @@
-import { db } from '../db/client';
+import { pool } from '../db/client';
 import { AppError } from '../middleware/errorHandler';
 import { Lane } from '../types';
 
 // Returns all seeded lanes
 export async function getAllLanes(): Promise<Lane[]> {
-  const result = await db.query<Lane>(
+  const result = await pool.query<Lane>(
     `SELECT * FROM lanes ORDER BY origin_city, destination_city`,
   );
   return result.rows;
@@ -32,7 +32,7 @@ export async function searchLanes(
     params = [q];
   }
 
-  const result = await db.query<Lane>(sql, params);
+  const result = await pool.query<Lane>(sql, params);
   return result.rows;
 }
 
@@ -44,7 +44,7 @@ export async function findLane(
   destinationCity:      string,
   destinationProvince:  string,
 ): Promise<Lane | null> {
-  const result = await db.query<Lane>(
+  const result = await pool.query<Lane>(
     `SELECT * FROM lanes
      WHERE LOWER(origin_city)           = LOWER($1)
        AND LOWER(origin_province)       = LOWER($2)
@@ -58,7 +58,7 @@ export async function findLane(
 
 // Fetches a single lane by ID — used internally when building quote responses.
 export async function getLaneById(id: string): Promise<Lane> {
-  const result = await db.query<Lane>(
+  const result = await pool.query<Lane>(
     `SELECT * FROM lanes WHERE id = $1`,
     [id],
   );

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../db/client';
+import { pool } from '../db/client';
 
 const router = Router();
 
@@ -10,7 +10,7 @@ router.get('/', async (_req, res) => {
   let dbStatus = 'ok';
 
   try {
-    await db.query('SELECT 1');
+    await pool.query('SELECT 1');
   } catch {
     dbStatus = 'error';
   }

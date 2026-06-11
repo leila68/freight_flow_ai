@@ -16,13 +16,36 @@ async function runMigrations(): Promise<void> {
 
   console.log(`🗂️  Running ${files.length} migration(s)...\n`);
 
+  // for (const file of files) {
+  //   const filePath = path.join(migrationsDir, file);
+  //   const sql = fs.readFileSync(filePath, 'utf-8');
+  //   console.log(`  ▶ ${file}`);
+  //   await pool.query(sql);
+  //   console.log(`  ✅ ${file} complete`);
+  // }
   for (const file of files) {
-    const filePath = path.join(migrationsDir, file);
-    const sql = fs.readFileSync(filePath, 'utf-8');
-    console.log(`  ▶ ${file}`);
-    await pool.query(sql);
-    console.log(`  ✅ ${file} complete`);
+  const sql = fs.readFileSync(
+    path.join(migrationsDir, file),
+    'utf-8'
+  );
+
+  console.log(`▶ ${file}`);
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    await client.query(sql);
+    await client.query('COMMIT');
+
+    console.log(`✅ ${file} complete`);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
+}
 
   console.log('\n✅  All migrations complete');
   await pool.end();
