@@ -9,11 +9,12 @@ import { cn } from '@/lib/utils'
 import { searchLanes } from '@/src/lib/api'
 import type { Lane } from '@/src/types/quote'
 import type { QuoteFormData } from '@/src/pages/QuoteEngine'
-import { equipmentTypes, accessorialOptions } from '@/src/lib/constants'
+import { accessorialOptions } from '@/src/lib/constants'
+import { fetchAccessorials, fetchEquipmentTypes, type AccessorialOption, type EquipmentTypeOption } from '@/src/lib/api'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { MapPin, Truck, Package, Check, ChevronRight, ChevronLeft } from 'lucide-react'
-import { fetchAccessorials, type AccessorialOption } from '@/src/lib/api'
+
 
 
 interface QuoteFormProps {
@@ -48,6 +49,12 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
   const [loadingDest, setLoadingDest] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
   const [accessorials, setAccessorials] = useState<AccessorialOption[]>([])
+
+  const [equipmentTypesList, setEquipmentTypesList] = useState<EquipmentTypeOption[]>([])
+
+  useEffect(() => {
+    fetchEquipmentTypes().then(setEquipmentTypesList).catch(console.error)
+  }, [])
 
   useEffect(() => {
     fetchAccessorials().then(setAccessorials).catch(console.error)
@@ -314,9 +321,9 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
                   <SelectValue placeholder="Select equipment type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {equipmentTypes.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
+                  {equipmentTypesList.map((type) => (
+                    <SelectItem key={type.code} value={type.code}>
+                      {type.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -349,23 +356,20 @@ export function QuoteForm({ formData, step, onFormChange, onNextStep, onPrevStep
                 <div
                   key={acc.code}
                   className={cn(
-                    'flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors',
-                    formData.accessorials.includes(acc.label)
+                    'flex cursor-pointer items-center rounded-lg border p-3 transition-colors',
+                    formData.accessorials.includes(acc.name)
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50'
                   )}
-                  onClick={() => handleAccessorialToggle(acc.label)}
+                  onClick={() => handleAccessorialToggle(acc.name)}
                 >
                   <div className="flex items-center gap-3">
                     <Checkbox
-                      checked={formData.accessorials.includes(acc.label)}
-                      onCheckedChange={() => handleAccessorialToggle(acc.label)}
+                      checked={formData.accessorials.includes(acc.name)}
+                      onCheckedChange={() => handleAccessorialToggle(acc.name)}
                     />
-                    <span className="text-sm">{acc.label}</span>
+                    <span className="text-sm">{acc.name}</span>
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    +${parseFloat(acc.price).toFixed(2)}
-                  </span>
                 </div>
               ))}
             </div>

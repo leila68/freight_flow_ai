@@ -54,8 +54,7 @@ export interface FetchQuotesParams {
 export interface AccessorialOption {
   id:    number
   code:  string
-  label: string
-  price: string
+  name: string
 }
 
 export async function fetchAccessorials(): Promise<AccessorialOption[]> {
@@ -63,15 +62,15 @@ export async function fetchAccessorials(): Promise<AccessorialOption[]> {
   return res.data
 }
 
-export interface EquipmentMultiplier {
-  equipment_type: string
-  multiplier:     string
-  label:          string
+export interface EquipmentTypeOption {
+  id:   number
+  code: string
+  name: string
 }
 
-export async function fetchEquipmentMultipliers(): Promise<EquipmentMultiplier[]> {
-  const res = await apiFetch<{ success: boolean; data: EquipmentMultiplier[] }>(
-    '/api/equipment-multipliers'
+export async function fetchEquipmentTypes(): Promise<EquipmentTypeOption[]> {
+  const res = await apiFetch<{ success: boolean; data: EquipmentTypeOption[] }>(
+    '/api/equipment-types'
   )
   return res.data
 }
